@@ -25,8 +25,8 @@ infra/                  Docker, docker-compose, provisioning и инфрастр
 Ключевые версии:
 
 - PHP `8.5.0`
-- Laravel Framework `13.0.0`
-- Laravel Octane `3.0.0`
+- Laravel Framework `13.9.0`
+- Laravel Octane `2.17.3`
 - Swoole `6.0.2`
 - PostgreSQL `17.5`
 - Redis `7.4.2`
@@ -76,4 +76,3 @@ make swagger-validate
 - Архитектура: [docs/architecture.md](docs/architecture.md)
 - OpenAPI: [docs/openapi.yaml](docs/openapi.yaml)
 - Версии: [docs/versions.md](docs/versions.md)
-

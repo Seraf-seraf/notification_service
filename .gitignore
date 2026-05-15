@@ -30,15 +30,6 @@ phpunit.result.cache
 .phpunit.cache/
 coverage/
 
-# Node assets if Laravel frontend tooling is added later
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-public/build/
-public/hot
-
 # Go providers
 bin/
 dist/
@@ -53,3 +44,4 @@ tasks.txt
 AGENTS.md
 docs/architecture.md
 docs/versions.md
+test-strategy.md
