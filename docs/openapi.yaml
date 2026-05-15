@@ -1,0 +1,782 @@
+openapi: 3.1.0
+info:
+  title: Notification Service API
+  version: 1.0.0
+  description: >
+    HTTP API микросервиса уведомлений для запуска массовых SMS/Email рассылок
+    и получения истории статусов уведомлений подписчика. Авторизация находится
+    вне ответственности сервиса.
+servers:
+  - url: http://localhost:8080
+    description: Локальное окружение docker-compose
+
+tags:
+  - name: Уведомления
+    description: Операции запуска рассылок и чтения истории уведомлений.
+  - name: Статусы провайдеров
+    description: Callback endpoint для обновления delivery status от mock providers.
+
+paths:
+  /api/notifications/send:
+    post:
+      tags:
+        - Уведомления
+      summary: Запустить массовую рассылку
+      description: >
+        Принимает SMS или Email рассылку, создает batch и уведомления в статусе
+        queued, после чего задания отправки публикуются в RabbitMQ через надежный
+        outbox/publisher механизм. Повторный запрос с тем же Idempotency-Key и
+        тем же payload возвращает тот же результат без создания дублей.
+      operationId: zapustitMassovuyuRassylkuUvedomleniy
+      x-endpoint-name: Запустить массовую рассылку
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateNotificationBatchRequest'
+            examples:
+              marketingSms:
+                summary: Маркетинговая SMS рассылка
+                value:
+                  channel: sms
+                  message: Скидка 20% на поездки до конца недели
+                  priority: 1
+                  recipient_ids:
+                    - subscriber-10001
+                    - subscriber-10002
+                    - subscriber-10003
+              transactionalEmail:
+                summary: Транзакционная Email рассылка
+                value:
+                  channel: email
+                  message: Срочное изменение маршрута. Проверьте обновленные детали поездки.
+                  priority: 3
+                  recipient_ids:
+                    - subscriber-20001
+                    - subscriber-20002
+      responses:
+        '202':
+          description: Рассылка принята в обработку.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateNotificationBatchResponse'
+              examples:
+                accepted:
+                  summary: Рассылка создана
+                  value:
+                    data:
+                      batch_id: 018f7f8a-81a4-7a1d-9f90-6bff5c2f3b91
+                      status: accepted
+                      channel: sms
+                      priority: 1
+                      message: Скидка 20% на поездки до конца недели
+                      recipients_count: 3
+                      notifications:
+                        - notification_id: 1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62
+                          recipient_id: subscriber-10001
+                          status: queued
+                        - notification_id: 8d8a2f64-41c9-5e5d-9f13-25a465a7bd40
+                          recipient_id: subscriber-10002
+                          status: queued
+                        - notification_id: 8c62f21f-897d-50c4-b7db-33136c74893c
+                          recipient_id: subscriber-10003
+                          status: queued
+                    meta:
+                      request_id: req-7bb7f2e8
+                      idempotency_key: batch-sms-marketing-2026-05-16-001
+                      created_at: '2026-05-16T08:20:30Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/IdempotencyConflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/subscribers/{subscriberId}/notifications:
+    get:
+      tags:
+        - Уведомления
+      summary: Получить историю уведомлений подписчика
+      description: >
+        Возвращает текущие статусы и полную историю переходов статусов всех
+        уведомлений конкретного подписчика.
+      operationId: poluchitIstoriyuUvedomleniyPodpischika
+      x-endpoint-name: Получить историю уведомлений подписчика
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: subscriberId
+          in: path
+          required: true
+          description: Идентификатор подписчика во внешней системе-инициаторе.
+          schema:
+            type: string
+            minLength: 1
+          example: subscriber-10001
+        - name: status
+          in: query
+          required: false
+          description: Фильтр по текущему статусу уведомления.
+          schema:
+            $ref: '#/components/schemas/NotificationStatus'
+        - name: channel
+          in: query
+          required: false
+          description: Фильтр по каналу доставки.
+          schema:
+            $ref: '#/components/schemas/NotificationChannel'
+        - name: limit
+          in: query
+          required: false
+          description: Максимальное количество уведомлений в ответе.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Cursor для следующей страницы.
+          schema:
+            type: string
+        - name: created_from
+          in: query
+          required: false
+          description: Нижняя граница даты создания уведомления.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-05-16T00:00:00Z'
+        - name: created_to
+          in: query
+          required: false
+          description: Верхняя граница даты создания уведомления.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-05-16T23:59:59Z'
+      responses:
+        '200':
+          description: История уведомлений подписчика.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberNotificationsResponse'
+              examples:
+                history:
+                  summary: История с текущими статусами
+                  value:
+                    data:
+                      subscriber_id: subscriber-10001
+                      notifications:
+                        - notification_id: 1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62
+                          batch_id: 018f7f8a-81a4-7a1d-9f90-6bff5c2f3b91
+                          channel: sms
+                          message: Скидка 20% на поездки до конца недели
+                          priority: 1
+                          current_status: delivered
+                          provider_message_id: sms-msg-000001
+                          created_at: '2026-05-16T08:20:30Z'
+                          updated_at: '2026-05-16T08:20:37Z'
+                          status_history:
+                            - status: queued
+                              changed_at: '2026-05-16T08:20:30Z'
+                              reason: Уведомление принято и ожидает отправки.
+                            - status: sent
+                              changed_at: '2026-05-16T08:20:32Z'
+                              reason: Уведомление передано SMS provider.
+                            - status: delivered
+                              changed_at: '2026-05-16T08:20:37Z'
+                              reason: Provider подтвердил доставку.
+                        - notification_id: 7d9d68c3-e43f-573c-9e75-f5a91cc9f861
+                          batch_id: 0194d9d1-2a47-7a9c-a7ab-7ec0172c4e91
+                          channel: email
+                          message: Срочное изменение маршрута. Проверьте обновленные детали поездки.
+                          priority: 3
+                          current_status: sent
+                          provider_message_id: email-msg-000777
+                          created_at: '2026-05-16T09:10:00Z'
+                          updated_at: '2026-05-16T09:10:02Z'
+                          status_history:
+                            - status: queued
+                              changed_at: '2026-05-16T09:10:00Z'
+                              reason: Уведомление принято и ожидает отправки.
+                            - status: sent
+                              changed_at: '2026-05-16T09:10:02Z'
+                              reason: Уведомление передано Email provider.
+                    meta:
+                      request_id: req-7bb7f2e8
+                      limit: 50
+                      next_cursor: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/providers/{provider}/webhooks:
+    post:
+      tags:
+        - Статусы провайдеров
+      summary: Принять статус доставки от провайдера
+      description: >
+        Callback endpoint Notification Service, который mock SMS/Email provider
+        вызывает после асинхронной обработки сообщения. Обработчик идемпотентно
+        маппит provider status во внутренние статусы delivered/dropped и не
+        откатывает финальные статусы.
+      operationId: prinyatStatusDostavkiOtProvaydera
+      x-endpoint-name: Принять статус доставки от провайдера
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: provider
+          in: path
+          required: true
+          description: Mock provider, отправивший webhook.
+          schema:
+            type: string
+            enum:
+              - sms
+              - email
+          example: sms
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProviderWebhookRequest'
+            examples:
+              delivered:
+                summary: Provider подтвердил доставку
+                value:
+                  provider_message_id: smsmsg-000001
+                  message_id: 1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62
+                  status: delivered
+                  reason: null
+                  occurred_at: '2026-05-16T10:15:30Z'
+                  metadata:
+                    request_id: req-7bb7f2e8
+              invalidRecipient:
+                summary: Provider сообщил постоянную ошибку получателя
+                value:
+                  provider_message_id: smsmsg-000002
+                  message_id: 85bc2d2d-a41b-531b-9b04-986f3fd2ed10
+                  status: invalid_recipient
+                  reason: Recipient phone or email does not exist
+                  occurred_at: '2026-05-16T10:16:10Z'
+                  metadata:
+                    request_id: req-2e45a7c1
+      responses:
+        '202':
+          description: Статус принят к обработке или идемпотентно проигнорирован.
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderWebhookResponse'
+              example:
+                data:
+                  provider_message_id: smsmsg-000001
+                  message_id: 1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62
+                  provider_status: delivered
+                  notification_status: delivered
+                  applied: true
+                meta:
+                  request_id: req-7bb7f2e8
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: >
+        Сквозной идентификатор запроса. Если заголовок не передан, сервис
+        генерирует новый и возвращает его в ответе.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 128
+      example: req-7bb7f2e8
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >
+        Ключ идемпотентности для защиты от повторного создания одной и той же
+        рассылки при повторе запроса вызывающим сервисом.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+      example: batch-sms-marketing-2026-05-16-001
+
+  headers:
+    XRequestId:
+      description: Сквозной идентификатор запроса.
+      schema:
+        type: string
+      example: req-7bb7f2e8
+
+  schemas:
+    NotificationChannel:
+      type: string
+      description: Канал доставки уведомления.
+      enum:
+        - sms
+        - email
+      examples:
+        - sms
+
+    NotificationPriority:
+      type: integer
+      description: >
+        Приоритет отправки: 1 - несрочная/маркетинговая рассылка, 2 - обычное
+        сервисное уведомление, 3 - срочное транзакционное уведомление.
+      minimum: 1
+      maximum: 3
+      enum:
+        - 1
+        - 2
+        - 3
+      examples:
+        - 3
+
+    NotificationStatus:
+      type: string
+      description: Текущий статус уведомления в Notification Service.
+      enum:
+        - queued
+        - sent
+        - delivered
+        - dropped
+      examples:
+        - queued
+
+    ProviderStatus:
+      type: string
+      description: Статус сообщения на стороне mock provider.
+      enum:
+        - accepted
+        - processing
+        - delivered
+        - temporary_failed
+        - permanent_failed
+        - invalid_recipient
+        - expired
+      examples:
+        - delivered
+
+    CreateNotificationBatchRequest:
+      type: object
+      required:
+        - channel
+        - message
+        - priority
+        - recipient_ids
+      additionalProperties: false
+      properties:
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        message:
+          type: string
+          description: Текст сообщения для всех получателей batch.
+          minLength: 1
+          maxLength: 2000
+          example: Ваш код доступа 1234
+        priority:
+          $ref: '#/components/schemas/NotificationPriority'
+        recipient_ids:
+          type: array
+          description: Массив идентификаторов получателей во внешней системе.
+          minItems: 1
+          maxItems: 10000
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+          example:
+            - subscriber-10001
+            - subscriber-10002
+
+    CreateNotificationBatchResponse:
+      type: object
+      required:
+        - data
+        - meta
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          required:
+            - batch_id
+            - status
+            - channel
+            - priority
+            - message
+            - recipients_count
+            - notifications
+          additionalProperties: false
+          properties:
+            batch_id:
+              type: string
+              format: uuid
+              description: Идентификатор созданного batch.
+            status:
+              type: string
+              enum:
+                - accepted
+              description: Статус приема batch в обработку.
+            channel:
+              $ref: '#/components/schemas/NotificationChannel'
+            priority:
+              $ref: '#/components/schemas/NotificationPriority'
+            message:
+              type: string
+              description: Текст сообщения.
+            recipients_count:
+              type: integer
+              minimum: 1
+              description: Количество получателей в batch.
+            notifications:
+              type: array
+              description: Созданные уведомления по получателям.
+              items:
+                $ref: '#/components/schemas/CreatedNotification'
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    CreatedNotification:
+      type: object
+      required:
+        - notification_id
+        - recipient_id
+        - status
+      additionalProperties: false
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        recipient_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+
+    SubscriberNotificationsResponse:
+      type: object
+      required:
+        - data
+        - meta
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          required:
+            - subscriber_id
+            - notifications
+          additionalProperties: false
+          properties:
+            subscriber_id:
+              type: string
+            notifications:
+              type: array
+              items:
+                $ref: '#/components/schemas/SubscriberNotification'
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/ResponseMeta'
+            - type: object
+              properties:
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                next_cursor:
+                  type:
+                    - string
+                    - 'null'
+
+    SubscriberNotification:
+      type: object
+      required:
+        - notification_id
+        - batch_id
+        - channel
+        - message
+        - priority
+        - current_status
+        - created_at
+        - updated_at
+        - status_history
+      additionalProperties: false
+      properties:
+        notification_id:
+          type: string
+          format: uuid
+        batch_id:
+          type: string
+          format: uuid
+        channel:
+          $ref: '#/components/schemas/NotificationChannel'
+        message:
+          type: string
+        priority:
+          $ref: '#/components/schemas/NotificationPriority'
+        current_status:
+          $ref: '#/components/schemas/NotificationStatus'
+        provider_message_id:
+          type:
+            - string
+            - 'null'
+          description: Идентификатор сообщения на стороне провайдера после отправки.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        status_history:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/NotificationStatusHistoryItem'
+
+    NotificationStatusHistoryItem:
+      type: object
+      required:
+        - status
+        - changed_at
+      additionalProperties: false
+      properties:
+        status:
+          $ref: '#/components/schemas/NotificationStatus'
+        changed_at:
+          type: string
+          format: date-time
+        reason:
+          type:
+            - string
+            - 'null'
+          description: Человекочитаемая причина изменения статуса.
+
+    ResponseMeta:
+      type: object
+      required:
+        - request_id
+      additionalProperties: true
+      properties:
+        request_id:
+          type: string
+          description: Значение X-Request-Id, принятое или сгенерированное сервисом.
+        idempotency_key:
+          type: string
+          description: Idempotency-Key, использованный для создания batch.
+        created_at:
+          type: string
+          format: date-time
+
+    ProviderWebhookRequest:
+      type: object
+      required:
+        - provider_message_id
+        - message_id
+        - status
+        - occurred_at
+      additionalProperties: false
+      properties:
+        provider_message_id:
+          type: string
+          description: Идентификатор сообщения на стороне provider.
+          example: smsmsg-000001
+        message_id:
+          type: string
+          format: uuid
+          description: Детерминированный идентификатор notification/message в Notification Service.
+          example: 1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62
+        status:
+          $ref: '#/components/schemas/ProviderStatus'
+        reason:
+          type:
+            - string
+            - 'null'
+          description: Причина статуса на стороне provider.
+          example: null
+        occurred_at:
+          type: string
+          format: date-time
+          description: Время события на стороне provider.
+        metadata:
+          type: object
+          additionalProperties: true
+          properties:
+            request_id:
+              type: string
+              description: Исходный request id, если provider получил его при отправке.
+
+    ProviderWebhookResponse:
+      type: object
+      required:
+        - data
+        - meta
+      additionalProperties: false
+      properties:
+        data:
+          type: object
+          required:
+            - provider_message_id
+            - message_id
+            - provider_status
+            - notification_status
+            - applied
+          additionalProperties: false
+          properties:
+            provider_message_id:
+              type: string
+            message_id:
+              type: string
+              format: uuid
+            provider_status:
+              $ref: '#/components/schemas/ProviderStatus'
+            notification_status:
+              $ref: '#/components/schemas/NotificationStatus'
+            applied:
+              type: boolean
+              description: >
+                true, если webhook изменил current status; false, если событие
+                было идемпотентным дублем или не меняло монотонный статус.
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - meta
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              examples:
+                - validation_error
+            message:
+              type: string
+              examples:
+                - Переданы некорректные параметры запроса.
+            details:
+              type: object
+              additionalProperties:
+                type: array
+                items:
+                  type: string
+              description: Ошибки валидации по полям запроса.
+        meta:
+          type: object
+          required:
+            - request_id
+          additionalProperties: false
+          properties:
+            request_id:
+              type: string
+
+  responses:
+    BadRequest:
+      description: Некорректный JSON или неподдерживаемый формат запроса.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: bad_request
+              message: Тело запроса должно быть валидным JSON.
+            meta:
+              request_id: req-7bb7f2e8
+
+    ValidationError:
+      description: Ошибка валидации входных данных.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: validation_error
+              message: Переданы некорректные параметры запроса.
+              details:
+                channel:
+                  - Канал должен быть sms или email.
+                priority:
+                  - Приоритет должен быть числом от 1 до 3.
+                recipient_ids:
+                  - Нужно передать хотя бы одного получателя.
+            meta:
+              request_id: req-7bb7f2e8
+
+    IdempotencyConflict:
+      description: Idempotency-Key уже использован с другим payload.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: idempotency_conflict
+              message: Idempotency-Key уже использован для другого запроса.
+            meta:
+              request_id: req-7bb7f2e8
+
+    InternalServerError:
+      description: Внутренняя ошибка сервиса.
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error:
+              code: internal_error
+              message: Внутренняя ошибка сервиса.
+            meta:
+              request_id: req-7bb7f2e8
