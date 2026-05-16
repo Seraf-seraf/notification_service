@@ -47,7 +47,6 @@ class NotificationSchemaTest extends TestCase
         ]));
 
         $this->assertTrue(Schema::hasColumns('idempotency_keys', [
-            'caller_id',
             'endpoint',
             'idempotency_key',
             'payload_hash',
@@ -70,7 +69,7 @@ class NotificationSchemaTest extends TestCase
         ]));
     }
 
-    public function test_idempotency_key_is_unique_inside_caller_and_endpoint(): void
+    public function test_idempotency_key_is_unique_inside_endpoint(): void
     {
         $batchId = $this->insertBatch();
         $this->insertIdempotencyKey($batchId, 'same-key');
@@ -162,7 +161,6 @@ class NotificationSchemaTest extends TestCase
 
         DB::table('idempotency_keys')->insert([
             'id' => (string) Str::uuid(),
-            'caller_id' => 'schema-test-caller',
             'endpoint' => '/api/notifications/send',
             'idempotency_key' => $idempotencyKey,
             'payload_hash' => str_repeat('a', 64),

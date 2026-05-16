@@ -14,7 +14,6 @@ return new class extends Migration
     {
         Schema::create('idempotency_keys', function (Blueprint $table): void {
             $table->uuid('id')->primary();
-            $table->string('caller_id', 255);
             $table->string('endpoint', 255);
             $table->string('idempotency_key', 255);
             $table->char('payload_hash', 64);
@@ -25,7 +24,7 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->foreign('batch_id')->references('id')->on('notification_batches')->nullOnDelete();
-            $table->unique(['caller_id', 'endpoint', 'idempotency_key']);
+            $table->unique(['endpoint', 'idempotency_key']);
             $table->index('batch_id');
             $table->index('expires_at');
             $table->index('created_at');
