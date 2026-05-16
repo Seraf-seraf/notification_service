@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function (): array {
@@ -13,3 +14,9 @@ Route::get('/health', function (): array {
         ],
     ];
 })->name('api.health');
+
+Route::post('/notifications/send', [NotificationController::class, 'send'])
+    ->name('api.notifications.send');
+
+Route::get('/subscribers/{subscriberId}/notifications', [NotificationController::class, 'history'])
+    ->name('api.subscribers.notifications');
