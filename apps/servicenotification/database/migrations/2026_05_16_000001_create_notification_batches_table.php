@@ -21,6 +21,7 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->index(['channel', 'priority']);
+            $table->index('idempotency_key');
             $table->index('created_at');
         });
     }

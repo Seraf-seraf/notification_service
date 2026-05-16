@@ -27,12 +27,16 @@ return new class extends Migration
             $table->timestampsTz();
 
             $table->foreign('batch_id')->references('id')->on('notification_batches')->cascadeOnDelete();
+            $table->unique(['batch_id', 'subscriber_id']);
             $table->index('subscriber_id');
             $table->index('batch_id');
             $table->index('status');
             $table->index('provider');
             $table->index('provider_status');
+            $table->index('channel');
+            $table->index('priority');
             $table->index(['channel', 'priority']);
+            $table->index(['status', 'created_at']);
             $table->index('provider_message_id');
             $table->index('created_at');
         });
