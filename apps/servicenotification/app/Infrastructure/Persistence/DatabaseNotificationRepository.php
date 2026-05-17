@@ -102,7 +102,7 @@ final class DatabaseNotificationRepository implements NotificationRepository
                     'notification_id' => $notificationId,
                     'message_type' => self::OUTBOX_MESSAGE_TYPE,
                     'exchange' => config('rabbitmq.exchange', 'notifications.exchange'),
-                    'routing_key' => 'notifications.'.$command->channel.'.send',
+                    'routing_key' => config('rabbitmq.routing_keys.'.$command->channel, 'notifications.'.$command->channel.'.send'),
                     'channel' => $command->channel,
                     'priority' => $command->priority,
                     'payload' => json_encode([

@@ -71,6 +71,14 @@ make swagger-validate
 
 На текущем этапе `infra/docker-compose.yml` и приложения будут добавлены следующими задачами. Makefile уже фиксирует единый интерфейс команд и путь к compose-файлу.
 
+Outbox publisher внутри Laravel приложения запускается командой:
+
+```bash
+php artisan notifications:outbox:publish --limit=100
+```
+
+RabbitMQ topology хранится в `infra/rabbitmq/definitions.json`; при подключении этих файлов в compose RabbitMQ создаст exchange, priority queues, retry queues и DLQ при старте.
+
 ## Документация
 
 - Архитектура: [docs/architecture.md](docs/architecture.md)

@@ -1,6 +1,7 @@
 <?php
 
 use App\Application\Exception\IdempotencyConflictException;
+use App\Console\Commands\PublishOutboxMessagesCommand;
 use App\Http\Middleware\RequestIdMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -57,6 +58,9 @@ return Application::configure(basePath: dirname(__DIR__))
             RequestIdMiddleware::class,
         ]);
     })
+    ->withCommands([
+        PublishOutboxMessagesCommand::class,
+    ])
     ->withExceptions(function (Exceptions $exceptions) use ($errorCodeForStatus, $errorResponse): void {
         $exceptions->dontReport([
             IdempotencyConflictException::class,

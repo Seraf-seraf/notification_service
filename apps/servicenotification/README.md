@@ -16,6 +16,7 @@ Laravel Octane приложение Notification Service.
 - PostgreSQL как основной `DB_CONNECTION`.
 - Redis для cache/session.
 - RabbitMQ конфиг в `config/rabbitmq.php`.
+- Outbox publisher: `php artisan notifications:outbox:publish --limit=100`.
 - Provider/retry настройки в `config/notification.php`.
 - VictoriaMetrics-related настройки в `config/observability.php`.
 - JSON logs в stderr через Monolog `JsonFormatter`.
