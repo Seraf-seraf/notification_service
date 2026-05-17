@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\Observability\MetricsController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/health', function (): array {
@@ -14,6 +15,9 @@ Route::get('/health', function (): array {
         ],
     ];
 })->name('api.health');
+
+Route::get(config('observability.metrics.path', '/metrics'), MetricsController::class)
+    ->name('api.metrics');
 
 Route::post('/notifications/send', [NotificationController::class, 'send'])
     ->name('api.notifications.send');

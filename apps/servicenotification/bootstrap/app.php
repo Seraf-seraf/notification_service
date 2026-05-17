@@ -3,6 +3,7 @@
 use App\Application\Exception\IdempotencyConflictException;
 use App\Console\Commands\ConsumeNotificationMessagesCommand;
 use App\Console\Commands\PublishOutboxMessagesCommand;
+use App\Http\Middleware\HttpMetricsMiddleware;
 use App\Http\Middleware\RequestIdMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -57,6 +58,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(append: [
             RequestIdMiddleware::class,
+            HttpMetricsMiddleware::class,
         ]);
     })
     ->withCommands([

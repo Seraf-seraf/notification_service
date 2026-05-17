@@ -12,6 +12,7 @@ use App\Infrastructure\Messaging\RabbitMqDeliveryMessagePublisher;
 use App\Infrastructure\Messaging\RabbitMqMessagePublisher;
 use App\Infrastructure\Persistence\DatabaseNotificationRepository;
 use App\Infrastructure\Provider\ConfiguredNotificationProviderRegistry;
+use App\Observability\MetricsRegistry;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +23,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(MessagePublisher::class, RabbitMqMessagePublisher::class);
         $this->app->bind(DeliveryMessagePublisher::class, RabbitMqDeliveryMessagePublisher::class);
         $this->app->bind(NotificationProviderRegistry::class, ConfiguredNotificationProviderRegistry::class);
+        $this->app->singleton(MetricsRegistry::class, fn ($app): MetricsRegistry => new MetricsRegistry($app['cache.store']));
     }
 
     public function boot(): void

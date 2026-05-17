@@ -11,6 +11,7 @@ use App\Application\Provider\ProviderSendRequest;
 use App\Application\Provider\TemporaryProviderException;
 use App\Domain\Notification\NotificationStatus;
 use App\Domain\Notification\ProviderDeliveryStatus;
+use App\Observability\MetricsRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ final readonly class NotificationSendHandler
 {
     public function __construct(
         private NotificationProviderRegistry $providers,
+        private MetricsRegistry $metrics,
     ) {}
 
     public function handle(NotificationSendPayload $payload): NotificationDeliveryResult
@@ -66,6 +68,15 @@ final readonly class NotificationSendHandler
             );
         }
 
+        $createdAt = CarbonImmutable::parse((string) $notification->created_at, 'UTC');
+        $this->metrics->observeQueueLag(
+            channel: (string) $notification->channel,
+            priority: (int) $notification->priority,
+            lagSeconds: max(0.0, CarbonImmutable::now('UTC')->diffInMicroseconds($createdAt, true) / 1_000_000),
+        );
+
+        $providerStartedAt = microtime(true);
+
         try {
             $result = $this->providers
                 ->forChannel((string) $notification->channel)
@@ -77,6 +88,12 @@ final readonly class NotificationSendHandler
                     priority: (int) $notification->priority,
                     requestId: $payload->requestId,
                 ));
+            $this->metrics->observeProviderLatency(
+                channel: (string) $notification->channel,
+                provider: (string) $notification->provider,
+                result: 'success',
+                durationSeconds: microtime(true) - $providerStartedAt,
+            );
 
             $this->markSent(
                 notificationId: (string) $notification->id,
@@ -94,6 +111,12 @@ final readonly class NotificationSendHandler
                 reason: 'Message sent to provider.',
             );
         } catch (PermanentProviderException $exception) {
+            $this->metrics->observeProviderLatency(
+                channel: (string) $notification->channel,
+                provider: (string) $notification->provider,
+                result: 'permanent_error',
+                durationSeconds: microtime(true) - $providerStartedAt,
+            );
             $this->markDropped(
                 notificationId: (string) $notification->id,
                 provider: (string) $notification->provider,
@@ -108,6 +131,13 @@ final readonly class NotificationSendHandler
                 reason: $exception->getMessage(),
             );
         } catch (TemporaryProviderException $exception) {
+            $this->metrics->observeProviderLatency(
+                channel: (string) $notification->channel,
+                provider: (string) $notification->provider,
+                result: 'temporary_error',
+                durationSeconds: microtime(true) - $providerStartedAt,
+            );
+
             return $this->handleTemporaryFailure(
                 notificationId: (string) $notification->id,
                 provider: (string) $notification->provider,
@@ -147,6 +177,7 @@ final readonly class NotificationSendHandler
                 return;
             }
 
+            $this->metrics->recordNotificationStatus($provider, NotificationStatus::Sent->value);
             $this->insertHistory(
                 notificationId: $notificationId,
                 status: NotificationStatus::Sent->value,
@@ -213,6 +244,7 @@ final readonly class NotificationSendHandler
                 return;
             }
 
+            $this->metrics->recordNotificationStatus($provider, NotificationStatus::Dropped->value);
             $this->insertHistory(
                 notificationId: $notificationId,
                 status: NotificationStatus::Dropped->value,

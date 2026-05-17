@@ -17,6 +17,7 @@ use App\Application\Support\CursorCodec;
 use App\Domain\Notification\NotificationProvider;
 use App\Domain\Notification\NotificationStatus;
 use App\Domain\Outbox\OutboxMessageStatus;
+use App\Observability\MetricsRegistry;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,10 @@ final class DatabaseNotificationRepository implements NotificationRepository
     private const string SEND_ENDPOINT = '/api/notifications/send';
 
     private const string OUTBOX_MESSAGE_TYPE = 'notification.send';
+
+    public function __construct(
+        private readonly MetricsRegistry $metrics,
+    ) {}
 
     public function createBatch(SendNotificationsCommand $command): SendNotificationsResultDto
     {
@@ -154,6 +159,12 @@ final class DatabaseNotificationRepository implements NotificationRepository
 
             return $queuedNotifications;
         });
+
+        $this->metrics->recordNotificationStatus(
+            channel: $command->channel,
+            status: NotificationStatus::Queued->value,
+            count: count($command->recipientIds),
+        );
 
         return new SendNotificationsResultDto(
             batchId: $batchId,

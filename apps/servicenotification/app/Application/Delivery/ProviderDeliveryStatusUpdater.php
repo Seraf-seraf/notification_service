@@ -7,6 +7,7 @@ namespace App\Application\Delivery;
 use App\Application\Command\UpdateProviderDeliveryStatusCommand;
 use App\Domain\Notification\NotificationProvider;
 use App\Domain\Notification\NotificationStatus;
+use App\Observability\MetricsRegistry;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -14,6 +15,7 @@ final readonly class ProviderDeliveryStatusUpdater
 {
     public function __construct(
         private ProviderStatusMapper $mapper,
+        private MetricsRegistry $metrics,
     ) {}
 
     public function update(UpdateProviderDeliveryStatusCommand $command): ProviderWebhookResultDto
@@ -62,6 +64,11 @@ final readonly class ProviderDeliveryStatusUpdater
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
+
+                $this->metrics->recordNotificationStatus(
+                    channel: (string) $notification->channel,
+                    status: $mappedNotificationStatus,
+                );
             }
 
             return new ProviderWebhookResultDto(
