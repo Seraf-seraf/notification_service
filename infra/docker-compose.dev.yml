@@ -1,0 +1,18 @@
+x-servicenotification-code: &servicenotification-code
+  volumes:
+    - ../apps/servicenotification/app:/app/app
+    - ../apps/servicenotification/bootstrap:/app/bootstrap
+    - ../apps/servicenotification/config:/app/config
+    - ../apps/servicenotification/database:/app/database
+    - ../apps/servicenotification/routes:/app/routes
+    - ../apps/servicenotification/tests:/app/tests
+
+services:
+  servicenotification:
+    <<: *servicenotification-code
+
+  worker:
+    <<: *servicenotification-code
+
+  outbox:
+    <<: *servicenotification-code
