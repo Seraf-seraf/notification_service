@@ -1,0 +1,373 @@
+name: notification-service
+
+services:
+  servicenotification:
+    image: notification-service/servicenotification:dev
+    build:
+      context: ../apps/servicenotification
+      dockerfile: ../../infra/servicenotification/Dockerfile
+      target: development
+      args:
+        SWOOLE_BASE_IMAGE: ${SWOOLE_BASE_IMAGE:-phpswoole/swoole:php8.5-alpine@sha256:8ad6f59700f161f624a652eea924e0a51c1b8c5549c75e120325cbfde754998a}
+    command: >
+      sh -c "php artisan octane:start
+      --server=$${OCTANE_SERVER:-swoole}
+      --host=$${OCTANE_HOST:-0.0.0.0}
+      --port=$${OCTANE_PORT:-8080}
+      --workers=$${OCTANE_WORKERS:-4}
+      --max-requests=$${OCTANE_MAX_REQUESTS:-500}"
+    environment:
+      APP_NAME: ${APP_NAME:-NotificationService}
+      APP_ENV: ${APP_ENV:-local}
+      APP_KEY: ${APP_KEY:-base64:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_URL: http://servicenotification:8080
+      APP_TIMEZONE: ${APP_TIMEZONE:-UTC}
+      LOG_CHANNEL: stderr
+      LOG_STACK: stderr
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-notification_service}
+      DB_USERNAME: ${POSTGRES_USER:-notification}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-notification}
+      DB_SSLMODE: prefer
+      CACHE_STORE: redis
+      CACHE_PREFIX: notification_service
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: sync
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+      REDIS_DB: 0
+      REDIS_CACHE_DB: 1
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_MANAGEMENT_PORT: 15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-notification}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-notification}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-notification}
+      RABBITMQ_PREFETCH: ${RABBITMQ_PREFETCH:-10}
+      RABBITMQ_CONNECTION_TIMEOUT: ${RABBITMQ_CONNECTION_TIMEOUT:-3}
+      RABBITMQ_READ_WRITE_TIMEOUT: ${RABBITMQ_READ_WRITE_TIMEOUT:-3}
+      RABBITMQ_HEARTBEAT: ${RABBITMQ_HEARTBEAT:-30}
+      RABBITMQ_PUBLISH_CONFIRM_TIMEOUT: ${RABBITMQ_PUBLISH_CONFIRM_TIMEOUT:-5}
+      SMS_PROVIDER_URL: http://smsprovider:8081
+      EMAIL_PROVIDER_URL: http://emailprovider:8082
+      SMS_PROVIDER_TIMEOUT_SECONDS: ${SMS_PROVIDER_TIMEOUT_SECONDS:-3}
+      EMAIL_PROVIDER_TIMEOUT_SECONDS: ${EMAIL_PROVIDER_TIMEOUT_SECONDS:-3}
+      IDEMPOTENCY_TTL_HOURS: ${IDEMPOTENCY_TTL_HOURS:-24}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
+      NOTIFICATION_RETRY_BACKOFF_SECONDS: ${NOTIFICATION_RETRY_BACKOFF_SECONDS:-30,120,300,900,1800}
+      RABBITMQ_RETRY_BACKOFF_SECONDS: ${RABBITMQ_RETRY_BACKOFF_SECONDS:-30,120,300,900,1800}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      METRICS_PATH: /metrics
+      VICTORIAMETRICS_URL: http://victoriametrics:8428
+      HTTP_LATENCY_BUCKETS: ${HTTP_LATENCY_BUCKETS:-0.005,0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10}
+      PROVIDER_LATENCY_BUCKETS: ${PROVIDER_LATENCY_BUCKETS:-0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10}
+      QUEUE_LAG_BUCKETS: ${QUEUE_LAG_BUCKETS:-0.1,0.5,1,5,15,30,60,300,900}
+      OCTANE_SERVER: ${OCTANE_SERVER:-swoole}
+      OCTANE_HOST: 0.0.0.0
+      OCTANE_PORT: 8080
+      OCTANE_WORKERS: ${OCTANE_WORKERS:-4}
+      OCTANE_MAX_REQUESTS: ${OCTANE_MAX_REQUESTS:-500}
+      OCTANE_MAX_EXECUTION_TIME: ${OCTANE_MAX_EXECUTION_TIME:-30}
+      OCTANE_GARBAGE_MB: ${OCTANE_GARBAGE_MB:-50}
+    ports:
+      - "${SERVICE_HTTP_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+
+  worker:
+    image: notification-service/servicenotification:dev
+    command: ["php", "artisan", "notifications:worker:send", "all"]
+    environment:
+      APP_NAME: ${APP_NAME:-NotificationService}
+      APP_ENV: ${APP_ENV:-local}
+      APP_KEY: ${APP_KEY:-base64:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      APP_URL: http://servicenotification:8080
+      LOG_CHANNEL: stderr
+      LOG_STACK: stderr
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-notification_service}
+      DB_USERNAME: ${POSTGRES_USER:-notification}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-notification}
+      DB_SSLMODE: prefer
+      CACHE_STORE: redis
+      SESSION_DRIVER: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+      REDIS_DB: 0
+      REDIS_CACHE_DB: 1
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_MANAGEMENT_PORT: 15672
+      RABBITMQ_USER: ${RABBITMQ_USER:-notification}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-notification}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-notification}
+      RABBITMQ_PREFETCH: ${RABBITMQ_PREFETCH:-10}
+      RABBITMQ_CONNECTION_TIMEOUT: ${RABBITMQ_CONNECTION_TIMEOUT:-3}
+      RABBITMQ_READ_WRITE_TIMEOUT: ${RABBITMQ_READ_WRITE_TIMEOUT:-3}
+      RABBITMQ_HEARTBEAT: ${RABBITMQ_HEARTBEAT:-30}
+      RABBITMQ_PUBLISH_CONFIRM_TIMEOUT: ${RABBITMQ_PUBLISH_CONFIRM_TIMEOUT:-5}
+      SMS_PROVIDER_URL: http://smsprovider:8081
+      EMAIL_PROVIDER_URL: http://emailprovider:8082
+      SMS_PROVIDER_TIMEOUT_SECONDS: ${SMS_PROVIDER_TIMEOUT_SECONDS:-3}
+      EMAIL_PROVIDER_TIMEOUT_SECONDS: ${EMAIL_PROVIDER_TIMEOUT_SECONDS:-3}
+      NOTIFICATION_MAX_ATTEMPTS: ${NOTIFICATION_MAX_ATTEMPTS:-5}
+      NOTIFICATION_RETRY_BACKOFF_SECONDS: ${NOTIFICATION_RETRY_BACKOFF_SECONDS:-30,120,300,900,1800}
+      RABBITMQ_RETRY_BACKOFF_SECONDS: ${RABBITMQ_RETRY_BACKOFF_SECONDS:-30,120,300,900,1800}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      PROVIDER_LATENCY_BUCKETS: ${PROVIDER_LATENCY_BUCKETS:-0.01,0.025,0.05,0.1,0.25,0.5,1,2.5,5,10}
+      QUEUE_LAG_BUCKETS: ${QUEUE_LAG_BUCKETS:-0.1,0.5,1,5,15,30,60,300,900}
+    depends_on:
+      servicenotification:
+        condition: service_healthy
+      smsprovider:
+        condition: service_healthy
+      emailprovider:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps | grep -v grep | grep 'notifications:worker:send' >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+
+  outbox:
+    image: notification-service/servicenotification:dev
+    command: >
+      sh -c "php artisan notifications:outbox:publish
+      --daemon
+      --limit=$${OUTBOX_PUBLISH_LIMIT:-100}
+      --sleep=$${OUTBOX_PUBLISH_INTERVAL_SECONDS:-2}"
+    environment:
+      APP_NAME: ${APP_NAME:-NotificationService}
+      APP_ENV: ${APP_ENV:-local}
+      APP_KEY: ${APP_KEY:-base64:MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=}
+      APP_DEBUG: ${APP_DEBUG:-true}
+      LOG_CHANNEL: stderr
+      LOG_STACK: stderr
+      LOG_LEVEL: ${LOG_LEVEL:-debug}
+      LOG_STDERR_FORMATTER: Monolog\Formatter\JsonFormatter
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-notification_service}
+      DB_USERNAME: ${POSTGRES_USER:-notification}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-notification}
+      DB_SSLMODE: prefer
+      CACHE_STORE: redis
+      REDIS_CLIENT: phpredis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-null}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-notification}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-notification}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST:-notification}
+      RABBITMQ_CONNECTION_TIMEOUT: ${RABBITMQ_CONNECTION_TIMEOUT:-3}
+      RABBITMQ_READ_WRITE_TIMEOUT: ${RABBITMQ_READ_WRITE_TIMEOUT:-3}
+      RABBITMQ_HEARTBEAT: ${RABBITMQ_HEARTBEAT:-30}
+      RABBITMQ_PUBLISH_CONFIRM_TIMEOUT: ${RABBITMQ_PUBLISH_CONFIRM_TIMEOUT:-5}
+      NOTIFICATION_RETRY_BACKOFF_SECONDS: ${NOTIFICATION_RETRY_BACKOFF_SECONDS:-30,120,300,900,1800}
+      OUTBOX_PUBLISH_LIMIT: ${OUTBOX_PUBLISH_LIMIT:-100}
+      OUTBOX_PUBLISH_INTERVAL_SECONDS: ${OUTBOX_PUBLISH_INTERVAL_SECONDS:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "ps | grep -v grep | grep 'notifications:outbox:publish' >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 30s
+
+  postgres:
+    image: postgres:${POSTGRES_VERSION:-17.5}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-notification_service}
+      POSTGRES_USER: ${POSTGRES_USER:-notification}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-notification}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init-test-db.sql:/docker-entrypoint-initdb.d/10-init-test-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  redis:
+    image: redis:${REDIS_VERSION:-7.4.2}-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:${RABBITMQ_VERSION:-4.1.1-management}
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-notification}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-notification}
+      RABBITMQ_DEFAULT_VHOST: ${RABBITMQ_VHOST:-notification}
+    ports:
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - ./rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  smsprovider:
+    image: notification-service/smsprovider:dev
+    build:
+      context: ../apps/smsprovider
+      dockerfile: ../../infra/smsprovider/Dockerfile
+    environment:
+      HTTP_ADDR: :8081
+      PROVIDER_NAME: sms_mock
+      PROVIDER_CHANNEL: sms
+      MESSAGE_ID_PREFIX: smsmsg
+      STATUS_MODE: ${SMS_PROVIDER_STATUS_MODE:-mixed}
+      PROCESSING_DELAY_MS: ${SMS_PROVIDER_PROCESSING_DELAY_MS:-100}
+      WEBHOOK_ENABLED: ${SMS_PROVIDER_WEBHOOK_ENABLED:-true}
+    ports:
+      - "${SMS_PROVIDER_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 15s
+
+  emailprovider:
+    image: notification-service/emailprovider:dev
+    build:
+      context: ../apps/emailprovider
+      dockerfile: ../../infra/emailprovider/Dockerfile
+    environment:
+      HTTP_ADDR: :8082
+      PROVIDER_NAME: email_mock
+      PROVIDER_CHANNEL: email
+      MESSAGE_ID_PREFIX: emailmsg
+      STATUS_MODE: ${EMAIL_PROVIDER_STATUS_MODE:-mixed}
+      PROCESSING_DELAY_MS: ${EMAIL_PROVIDER_PROCESSING_DELAY_MS:-100}
+      WEBHOOK_ENABLED: ${EMAIL_PROVIDER_WEBHOOK_ENABLED:-true}
+    ports:
+      - "${EMAIL_PROVIDER_PORT:-8082}:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 15s
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v${VICTORIAMETRICS_VERSION:-1.102.1}
+    command:
+      - -storageDataPath=/victoria-metrics-data
+      - -httpListenAddr=:8428
+      - -promscrape.config=/etc/victoriametrics/promscrape.yml
+    ports:
+      - "8428:8428"
+    volumes:
+      - victoriametrics-data:/victoria-metrics-data
+      - ./victoriametrics/promscrape.yml:/etc/victoriametrics/promscrape.yml:ro
+    depends_on:
+      servicenotification:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/victoria-metrics-prod", "-version"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-11.5.2}
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  rabbitmq-data:
+  victoriametrics-data:
+  grafana-data:

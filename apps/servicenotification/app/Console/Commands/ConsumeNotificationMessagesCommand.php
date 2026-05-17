@@ -36,6 +36,10 @@ final class ConsumeNotificationMessagesCommand extends Command
             a_global: false,
         );
 
+        $this->registerSignalHandlers(static function () use ($amqpChannel): void {
+            $amqpChannel->stopConsume();
+        });
+
         foreach ($channels as $channel) {
             if (! in_array($channel, ['sms', 'email'], true)) {
                 $this->components->error('Unsupported channel: '.$channel);
@@ -90,5 +94,20 @@ final class ConsumeNotificationMessagesCommand extends Command
         }
 
         return NotificationSendPayload::fromArray($decoded);
+    }
+
+    private function registerSignalHandlers(callable $stop): void
+    {
+        if (! function_exists('pcntl_async_signals') || ! function_exists('pcntl_signal')) {
+            return;
+        }
+
+        pcntl_async_signals(true);
+
+        foreach ([SIGTERM, SIGINT] as $signal) {
+            pcntl_signal($signal, static function () use ($stop): void {
+                $stop();
+            });
+        }
     }
 }

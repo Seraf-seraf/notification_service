@@ -97,6 +97,7 @@ final readonly class NotificationSendHandler
 
             $this->markSent(
                 notificationId: (string) $notification->id,
+                channel: (string) $notification->channel,
                 provider: (string) $notification->provider,
                 providerMessageId: $result->providerMessageId,
                 reason: $result->deduplicated
@@ -119,6 +120,7 @@ final readonly class NotificationSendHandler
             );
             $this->markDropped(
                 notificationId: (string) $notification->id,
+                channel: (string) $notification->channel,
                 provider: (string) $notification->provider,
                 providerStatus: ProviderDeliveryStatus::Failed->value,
                 reason: $exception->getMessage(),
@@ -140,6 +142,7 @@ final readonly class NotificationSendHandler
 
             return $this->handleTemporaryFailure(
                 notificationId: (string) $notification->id,
+                channel: (string) $notification->channel,
                 provider: (string) $notification->provider,
                 attempt: $attempt,
                 reason: $exception->getMessage(),
@@ -159,9 +162,9 @@ final readonly class NotificationSendHandler
         });
     }
 
-    private function markSent(string $notificationId, string $provider, string $providerMessageId, string $reason): void
+    private function markSent(string $notificationId, string $channel, string $provider, string $providerMessageId, string $reason): void
     {
-        DB::transaction(function () use ($notificationId, $provider, $providerMessageId, $reason): void {
+        DB::transaction(function () use ($notificationId, $channel, $provider, $providerMessageId, $reason): void {
             $now = CarbonImmutable::now('UTC');
             $updated = DB::table('notifications')
                 ->where('id', $notificationId)
@@ -177,7 +180,7 @@ final readonly class NotificationSendHandler
                 return;
             }
 
-            $this->metrics->recordNotificationStatus($provider, NotificationStatus::Sent->value);
+            $this->metrics->recordNotificationStatus($channel, NotificationStatus::Sent->value);
             $this->insertHistory(
                 notificationId: $notificationId,
                 status: NotificationStatus::Sent->value,
@@ -189,13 +192,14 @@ final readonly class NotificationSendHandler
         });
     }
 
-    private function handleTemporaryFailure(string $notificationId, string $provider, int $attempt, string $reason): NotificationDeliveryResult
+    private function handleTemporaryFailure(string $notificationId, string $channel, string $provider, int $attempt, string $reason): NotificationDeliveryResult
     {
         $maxAttempts = max(1, (int) config('notification.max_attempts', 5));
 
         if ($attempt >= $maxAttempts) {
             $this->markDropped(
                 notificationId: $notificationId,
+                channel: $channel,
                 provider: $provider,
                 providerStatus: ProviderDeliveryStatus::TemporaryFailed->value,
                 reason: 'Retry limit exceeded: '.$reason,
@@ -224,9 +228,9 @@ final readonly class NotificationSendHandler
         );
     }
 
-    private function markDropped(string $notificationId, string $provider, string $providerStatus, string $reason): void
+    private function markDropped(string $notificationId, string $channel, string $provider, string $providerStatus, string $reason): void
     {
-        DB::transaction(function () use ($notificationId, $provider, $providerStatus, $reason): void {
+        DB::transaction(function () use ($notificationId, $channel, $provider, $providerStatus, $reason): void {
             $now = CarbonImmutable::now('UTC');
             $updated = DB::table('notifications')
                 ->where('id', $notificationId)
@@ -244,7 +248,7 @@ final readonly class NotificationSendHandler
                 return;
             }
 
-            $this->metrics->recordNotificationStatus($provider, NotificationStatus::Dropped->value);
+            $this->metrics->recordNotificationStatus($channel, NotificationStatus::Dropped->value);
             $this->insertHistory(
                 notificationId: $notificationId,
                 status: NotificationStatus::Dropped->value,

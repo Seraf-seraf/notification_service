@@ -1,3 +1,3 @@
 module notification_service/apps/smsprovider
 
-go 1.25.0
+go 1.26.3

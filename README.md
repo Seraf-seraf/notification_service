@@ -24,10 +24,11 @@ infra/                  Docker, docker-compose, provisioning и инфрастр
 
 Ключевые версии:
 
-- PHP `8.5.0`
+- PHP `8.5.6`
 - Laravel Framework `13.9.0`
 - Laravel Octane `2.17.3`
-- Swoole `6.0.2`
+- Swoole `6.2.1`
+- PHP Redis extension `6.3.0`
 - PostgreSQL `17.5`
 - Redis `7.4.2`
 - RabbitMQ `4.1.1-management`
@@ -60,24 +61,38 @@ Floating tags вроде `latest` не используются.
 
 ```bash
 make up
+make migrate
 make down
 make test
-make test-integration
-make migrate
 make logs
-make lint
-make swagger-validate
 ```
 
-На текущем этапе `infra/docker-compose.yml` и приложения будут добавлены следующими задачами. Makefile уже фиксирует единый интерфейс команд и путь к compose-файлу.
+`make up` запускает Docker Compose окружение из `infra/docker-compose.yml`: Laravel Octane HTTP API, send worker, outbox worker, PostgreSQL, Redis, RabbitMQ, mock SMS provider, mock Email provider, VictoriaMetrics и Grafana. Миграции не выполняются автоматически при старте контейнеров; схема БД применяется явной командой `make migrate`.
+
+Доступные локальные URL после запуска:
+
+- API: `http://localhost:8080/api`
+- Healthcheck: `http://localhost:8080/api/health`
+- Metrics: `http://localhost:8080/api/metrics`
+- RabbitMQ Management: `http://localhost:15672`
+- VictoriaMetrics: `http://localhost:8428`
+- Grafana: `http://localhost:3000`
+- SMS provider: `http://localhost:8081`
+- Email provider: `http://localhost:8082`
 
 Outbox publisher внутри Laravel приложения запускается командой:
 
 ```bash
-php artisan notifications:outbox:publish --limit=100
+php artisan notifications:outbox:publish --daemon --limit=100 --sleep=2
 ```
 
 RabbitMQ topology хранится в `infra/rabbitmq/definitions.json`; при подключении этих файлов в compose RabbitMQ создаст exchange, priority queues, retry queues и DLQ при старте.
+
+Для локального окружения используются dev-образы с тестовыми зависимостями. Production target Laravel Dockerfile собирается без dev-зависимостей:
+
+```bash
+docker build -f infra/servicenotification/Dockerfile --target production -t notification-service/servicenotification:production apps/servicenotification
+```
 
 ## Документация
 

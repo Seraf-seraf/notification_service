@@ -2,8 +2,8 @@
   "rabbit_version": "4.1.1",
   "users": [
     {
-      "name": "guest",
-      "password_hash": "rycv/dQD269TcCAnO88xiQGxOGM3lTHW2tYfVPHYQOiFBfXi",
+      "name": "notification",
+      "password_hash": "bnRmeVuFKlpQUiED3tN67ONUz6S6MR+9QfEHspIeZThzn+Ry",
       "hashing_algorithm": "rabbit_password_hashing_sha256",
       "tags": [
         "administrator"
@@ -18,7 +18,7 @@
   ],
   "permissions": [
     {
-      "user": "guest",
+      "user": "notification",
       "vhost": "notification",
       "configure": ".*",
       "write": ".*",

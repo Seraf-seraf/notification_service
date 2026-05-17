@@ -44,6 +44,4 @@ docker-compose.override.yml
 
 tasks.txt
 AGENTS.md
-docs/architecture.md
-docs/versions.md
 test-strategy.md
