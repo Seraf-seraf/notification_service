@@ -35,6 +35,8 @@ bin/
 dist/
 coverage.out
 *.test
+/apps/smsprovider/smsprovider
+/apps/emailprovider/emailprovider
 
 # Docker / local data
 infra/.data/

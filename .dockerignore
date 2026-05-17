@@ -22,3 +22,5 @@ storage/logs
 tmp
 dist
 bin
+apps/smsprovider/smsprovider
+apps/emailprovider/emailprovider

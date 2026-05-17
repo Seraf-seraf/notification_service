@@ -33,7 +33,7 @@ infra/                  Docker, docker-compose, provisioning и инфрастр
 - RabbitMQ `4.1.1-management`
 - VictoriaMetrics `1.102.1`
 - Grafana `11.5.2`
-- Go `1.24.4`
+- Go `1.26.3`
 
 Floating tags вроде `latest` не используются.
 
