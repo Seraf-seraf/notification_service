@@ -20,3 +20,7 @@ Route::post('/notifications/send', [NotificationController::class, 'send'])
 
 Route::get('/subscribers/{subscriberId}/notifications', [NotificationController::class, 'history'])
     ->name('api.subscribers.notifications');
+
+Route::post('/providers/{provider}/webhooks', [NotificationController::class, 'providerWebhook'])
+    ->whereIn('provider', ['sms', 'email'])
+    ->name('api.providers.webhooks');

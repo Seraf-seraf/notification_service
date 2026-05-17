@@ -3,6 +3,7 @@
 return [
     'idempotency_ttl_hours' => (int) env('IDEMPOTENCY_TTL_HOURS', 24),
     'max_attempts' => (int) env('NOTIFICATION_MAX_ATTEMPTS', 5),
+    'provider_webhook_url' => env('PROVIDER_WEBHOOK_URL', ''),
     'retry_backoff_seconds' => array_map(
         static fn (string $value): int => (int) trim($value),
         explode(',', (string) env('NOTIFICATION_RETRY_BACKOFF_SECONDS', '30,120,300,900,1800')),

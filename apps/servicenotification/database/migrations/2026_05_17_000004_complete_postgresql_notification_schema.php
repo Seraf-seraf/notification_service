@@ -74,19 +74,11 @@ return new class extends Migration
 
     private function createProviderMessageIdUniqueIndex(): void
     {
-        if (DB::getDriverName() !== 'pgsql') {
-            return;
-        }
-
         DB::statement('CREATE UNIQUE INDEX notifications_provider_message_id_unique_not_null ON notifications (provider_message_id) WHERE provider_message_id IS NOT NULL');
     }
 
     private function dropProviderMessageIdUniqueIndex(): void
     {
-        if (DB::getDriverName() !== 'pgsql') {
-            return;
-        }
-
         DB::statement('DROP INDEX IF EXISTS notifications_provider_message_id_unique_not_null');
     }
 };

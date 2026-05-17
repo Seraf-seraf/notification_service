@@ -1,6 +1,7 @@
 <?php
 
 use App\Application\Exception\IdempotencyConflictException;
+use App\Console\Commands\ConsumeNotificationMessagesCommand;
 use App\Console\Commands\PublishOutboxMessagesCommand;
 use App\Http\Middleware\RequestIdMiddleware;
 use Illuminate\Foundation\Application;
@@ -59,6 +60,7 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withCommands([
+        ConsumeNotificationMessagesCommand::class,
         PublishOutboxMessagesCommand::class,
     ])
     ->withExceptions(function (Exceptions $exceptions) use ($errorCodeForStatus, $errorResponse): void {

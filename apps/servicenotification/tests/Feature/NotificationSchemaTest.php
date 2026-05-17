@@ -16,15 +16,6 @@ class NotificationSchemaTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        if (DB::connection()->getDriverName() !== 'pgsql') {
-            $this->markTestSkipped('PostgreSQL schema constraints are verified only on pgsql.');
-        }
-    }
-
     public function test_notification_schema_has_required_tables_and_columns(): void
     {
         $this->assertTrue(Schema::hasTable('notification_batches'));
