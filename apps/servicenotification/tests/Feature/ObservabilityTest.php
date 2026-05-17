@@ -71,7 +71,7 @@ class ObservabilityTest extends TestCase
             ->assertOk()
             ->assertSee('notification_worker_messages_processed_total{action="ack",channel="email"} 1', false)
             ->assertSee('notification_status_transitions_total{channel="email",status="sent"} 1', false)
-            ->assertSee('notification_provider_request_duration_seconds_count{channel="email",provider="email",result="success"} 1', false)
+            ->assertSee('notification_provider_request_duration_seconds_count{channel="email",provider="email_mock",result="success"} 1', false)
             ->assertSee('notification_queue_lag_seconds_count{channel="email",priority="3"} 1', false);
     }
 

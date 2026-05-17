@@ -55,6 +55,51 @@ Floating tags вроде `latest` не используются.
 - `delivered`
 - `dropped`
 
+### Примеры запросов
+
+Запуск маркетинговой SMS рассылки:
+
+```bash
+curl -i -X POST http://localhost:8080/api/notifications/send \
+  -H 'Content-Type: application/json' \
+  -H 'X-Request-Id: req-readme-sms-001' \
+  -H 'Idempotency-Key: readme-sms-marketing-001' \
+  -d '{
+    "channel": "sms",
+    "message": "Скидка 20% на поездки до конца недели",
+    "priority": 1,
+    "recipient_ids": ["subscriber-10001", "subscriber-10002"]
+  }'
+```
+
+Запуск срочного транзакционного Email:
+
+```bash
+curl -i -X POST http://localhost:8080/api/notifications/send \
+  -H 'Content-Type: application/json' \
+  -H 'X-Request-Id: req-readme-email-001' \
+  -H 'Idempotency-Key: readme-email-transactional-001' \
+  -d '{
+    "channel": "email",
+    "message": "Ваш код доступа 441122",
+    "priority": 3,
+    "recipient_ids": ["subscriber-20001"]
+  }'
+```
+
+Запрос истории подписчика:
+
+```bash
+curl -i 'http://localhost:8080/api/subscribers/subscriber-10001/notifications?limit=50' \
+  -H 'X-Request-Id: req-readme-history-001'
+```
+
+`Idempotency-Key` обязателен для `POST /api/notifications/send`. Повтор с тем же ключом и тем же JSON возвращает исходный `batch_id` и не создает новые `notifications`/`outbox_messages`; повтор с тем же ключом и другим payload возвращает `409 Conflict`.
+
+Приоритеты обрабатываются строго по числу: `1` - несрочная/маркетинговая рассылка, `2` - обычное сервисное уведомление, `3` - срочное транзакционное уведомление. RabbitMQ queues настроены с `x-max-priority=3`, поэтому сообщения priority `3`, еще не взятые воркером, обгоняют priority `1` и `2`.
+
+Temporary provider/RabbitMQ ошибки отправляются в retry с backoff `30,120,300,900,1800` секунд. Permanent provider errors, например несуществующий номер или email, сразу переводят notification в `dropped`. После исчерпания лимита попыток notification становится `dropped`, а техническое сообщение публикуется в DLQ.
+
 ## Команды разработки
 
 Команды выполняются из корня проекта:
@@ -64,10 +109,17 @@ make up
 make migrate
 make down
 make test
+make test-integration
+make test-e2e
+make lint
+make swagger-validate
+make final-check
 make logs
 ```
 
 `make up` запускает Docker Compose окружение из `infra/docker-compose.yml`: Laravel Octane HTTP API, send worker, outbox worker, PostgreSQL, Redis, RabbitMQ, mock SMS provider, mock Email provider, VictoriaMetrics и Grafana. Миграции не выполняются автоматически при старте контейнеров; схема БД применяется явной командой `make migrate`.
+
+Все проверки запускаются в контейнерах. Laravel тесты выполняются в сервисе `servicenotification`, Go provider tests - в фиксированном образе `golang:1.26.3-alpine3.22`, OpenAPI lint - в фиксированном образе `redocly/cli:1.34.5`.
 
 Доступные локальные URL после запуска:
 
@@ -98,4 +150,25 @@ docker build -f infra/servicenotification/Dockerfile --target production -t noti
 
 - Архитектура: [docs/architecture.md](docs/architecture.md)
 - OpenAPI: [docs/openapi.yaml](docs/openapi.yaml)
+- Тестовая стратегия: [docs/test-strategy.md](docs/test-strategy.md)
 - Версии: [docs/versions.md](docs/versions.md)
+
+## Mock providers
+
+SMS и Email providers находятся в `apps/smsprovider` и `apps/emailprovider`. Это HTTP-серверы на Go с одинаковым контрактом:
+
+- `POST /api/v1/messages` принимает одно сообщение, `X-Request-Id` и `Idempotency-Key`;
+- `GET /api/v1/messages/{provider_message_id}` возвращает provider-side status;
+- режим `mixed` детерминированно выбирает сценарий по recipient/text/metadata;
+- `temporary_failure` возвращает временную ошибку для retry;
+- `invalid_recipient`/`permanent_failure` возвращает постоянную ошибку;
+- `async_permanent_failure` принимает сообщение, а затем асинхронно переводит его в permanent failure;
+- webhook включается переменной `WEBHOOK_ENABLED`, URL задается из запроса или `WEBHOOK_URL`.
+
+Ограничения mock providers: статусы хранятся в памяти процесса, отправка webhook выполняется best-effort без собственного retry, поведение предназначено для интеграционных сценариев, а не для production gateway.
+
+## Финальный статус
+
+Проект покрывает функциональные и нефункциональные требования из `AGENTS.md`: API массовой отправки и истории, приоритеты `1..3`, at-least-once через RabbitMQ, business idempotency, retry/DLQ, request id, метрики VictoriaMetrics, Grafana provisioning и запуск одной командой `docker compose -f infra/docker-compose.yml up --build --remove-orphans`.
+
+Оставшийся компромисс: exactly-once реализован на уровне бизнес-логики через идемпотентность API, уникальные ограничения PostgreSQL, provider idempotency key и монотонные переходы статусов; физическая доставка RabbitMQ остается at-least-once.
