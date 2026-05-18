@@ -178,7 +178,7 @@ Webhook, то есть HTTP callback от provider, не считается ун
 - `STATUS_MODE=success|temporary_failure|permanent_failure|mixed` - детерминированный сценарий обработки.
 - `PROCESSING_DELAY_MS=...` - задержка перед финальным статусом.
 
-Если `WEBHOOK_ENABLED=true`, mock provider сам отправляет финальный статус. Если `WEBHOOK_ENABLED=false`, финальный статус остается доступен только через provider-side status endpoint; отдельный polling job в Notification Service сейчас не реализован.
+Если `WEBHOOK_ENABLED=true`, mock provider сам отправляет финальный статус. Если `WEBHOOK_ENABLED=false`, финальный статус остается доступен через provider-side polling route `GET /api/v1/messages/{provider_message_id}`; отдельный polling job в Notification Service сейчас не реализован.
 
 Для будущих real adapters правила зависят от возможностей провайдера:
 
@@ -200,7 +200,9 @@ Webhook, то есть HTTP callback от provider, не считается ун
 
 ### Provider-side status endpoint
 
-Mock providers реализуют `GET /api/v1/messages/{provider_message_id}`. Этот endpoint нужен для contract tests и будущего polling adapter. Текущая Laravel-реализация обновляет финальные статусы через webhook endpoint `/api/providers/{provider}/webhooks`.
+Mock SMS и Email providers реализуют polling route `GET /api/v1/messages/{provider_message_id}`. Route возвращает текущее состояние сообщения на стороне provider из in-memory хранилища mock-сервера: `accepted`, `processing`, `delivered`, `temporary_failed`, `permanent_failed`, `invalid_recipient` или `expired`.
+
+Этот route нужен для contract tests и для сценария, где Notification Service или отдельный polling worker периодически запрашивает финальный статус после успешной отправки. Текущая Laravel-реализация обновляет финальные статусы через webhook endpoint `/api/providers/{provider}/webhooks`; polling adapter в приложении пока не реализован.
 
 ## 10. Контракты провайдеров и независимость от шлюзов
 
@@ -363,6 +365,8 @@ Content-Type: application/json
 ```
 
 ### 10.6. Provider-side status request
+
+Mock providers поддерживают этот route как polling API. Клиент может вызывать его после получения `provider_message_id` из send response, пока provider-side status не станет финальным.
 
 Endpoint:
 
