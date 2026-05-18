@@ -8,7 +8,7 @@ OPENAPI_IMAGE ?= redocly/cli:1.34.5
 .PHONY: up down test migrate logs ps swagger-validate
 
 up:
-	$(COMPOSE) up --build --remove-orphans
+	$(COMPOSE) up -d --build --remove-orphans
 
 down:
 	$(COMPOSE) down --remove-orphans
