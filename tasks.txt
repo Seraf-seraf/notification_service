@@ -1,0 +1,106 @@
+1. Составить архитектуру Notification Service.
+   Описать в docs/architecture.md актеров и взаимодействия: вызывающий сервис без авторизации, HTTP API сервиса уведомлений, PostgreSQL, Redis, RabbitMQ, воркеры отправки, mock SMS provider, mock Email provider, VictoriaMetrics и Grafana. Зафиксировать основной поток массовой рассылки, поток транзакционного уведомления с высоким приоритетом, callback/polling поток обновления статуса от провайдера, retry/DLQ поток и сценарий запроса истории уведомлений подписчика.
+
+2. Спроектировать модель надежности и доставки.
+   Описать at-least-once через durable RabbitMQ queues/messages и manual ack, exactly-once на уровне бизнес-логики через idempotency key, уникальные ограничения PostgreSQL, детерминированные notification/message identifiers и идемпотентные переходы статусов. Зафиксировать правила retry при временных ошибках, правила окончательного статуса dropped, dead-letter queue, backoff и предел попыток.
+
+3. Спроектировать контракты провайдеров и независимость от конкретных шлюзов.
+    Описать интерфейс отправки уведомлений в приложении, адаптеры SMS/Email, формат запроса к mock provider, формат ответа, формат статусов provider-side и правила маппинга provider statuses в queued/sent/delivered/dropped. Убедиться, что доменная логика зависит от интерфейса, а не от конкретного HTTP-провайдера.
+
+4. Описать Swagger/OpenAPI спецификацию.
+   Создать docs/openapi.yaml с endpoint для запуска массовой отправки, endpoint для получения истории и текущего статуса уведомлений подписчика, схемами request/response/error, заголовком X-Request-Id, idempotency key, каналом sms/email, priority 1..3, массивом recipient_ids, текстом сообщения и всеми статусами queued/sent/delivered/dropped. Добавить примеры для маркетинговой и транзакционной рассылки.
+
+5. Зафиксировать версии и базовую структуру репозитория.
+   Создать структуру apps/servicenotification, apps/smsprovider, apps/emailprovider, docs, infra. Зафиксировать конкретные версии PHP 8.5, Laravel, Laravel Octane, Swoole, PostgreSQL, Redis, RabbitMQ, VictoriaMetrics и Grafana; latest не использовать. Подготовить README.md, .gitignore, .dockerignore, .env.example и Makefile.
+
+6. Подготовить тестовую стратегию до реализации. (выполнено)
+   Описать набор unit, feature и integration tests: API validation, idempotency, создание batch и notifications, публикация в RabbitMQ, приоритеты 1..3, обработка воркером, вызов нужного provider adapter, переходы queued -> sent -> delivered/dropped, retry временных ошибок, DLQ после превышения попыток, request-id middleware, метрики HTTP latency и история статусов подписчика.
+
+7. Настроить Laravel Octane приложение.
+   Инициализировать apps/servicenotification на Laravel с PHP 8.5 и Octane/Swoole. Настроить env, healthcheck endpoint, конфигурацию PostgreSQL, Redis, RabbitMQ, логирование JSON и базовую структуру слоев: Http, Application, Domain, Infrastructure, Providers, Queue, Observability.
+
+8. Написать первые failing tests для публичного API.
+   До реализации контроллеров добавить тесты на POST /api/notifications/send и GET /api/subscribers/{subscriberId}/notifications. Проверить успешные ответы, ошибки валидации, обязательность channel/message/recipient_ids/priority, допустимые priority 1..3, допустимые каналы sms/email и наличие X-Request-Id в ответе.
+
+9. Реализовать HTTP API массовой рассылки и истории уведомлений.
+   Добавить routes, FormRequest/DTO, controllers и response resources. POST должен принимать канал, текст, priority, recipient_ids и idempotency key, создавать batch и notifications в статусе queued. GET должен возвращать текущий статус и историю статусов всех уведомлений конкретного подписчика.
+
+10. Спроектировать и реализовать схему PostgreSQL.
+    Создать миграции для notification_batches, notifications, notification_status_history, idempotency_keys/outbox при необходимости. Добавить индексы по subscriber_id, batch_id, status, channel, priority, provider_message_id и created_at. Добавить уникальные ограничения для идемпотентности и защиты от повторной отправки одного и того же бизнес-сообщения.
+
+11. Написать и реализовать тесты идемпотентности API.
+    Проверить, что повтор POST с тем же idempotency key и тем же payload возвращает тот же batch/result без создания дублей, а повтор с тем же key и другим payload возвращает конфликт. Проверить отсутствие повторной публикации сообщений в очередь при дубле запроса.
+
+12. Настроить RabbitMQ topology.
+    Создать durable exchange/queues для отправки уведомлений с поддержкой strict priority 1..3, retry exchange/queues с TTL/backoff и dead-letter queue. Настроить persistent messages, manual ack, prefetch, routing по channel и priority. Документировать topology в docs/architecture.md.
+
+13. Написать failing integration tests для публикации в очередь.
+    Проверить, что после приема batch каждое уведомление публикуется в RabbitMQ как persistent message с notification_id, channel, priority, attempt, request_id/correlation_id и без потери порядка приоритетов: priority 3 обрабатывается раньше priority 2 и priority 1.
+
+14. Реализовать publisher/outbox для очереди.
+    Добавить транзакционное создание уведомлений и публикацию сообщений через outbox или эквивалентный надежный механизм. Обеспечить, что уведомление не потеряется между commit PostgreSQL и публикацией в RabbitMQ. Добавить повторную отправку outbox-записей при временной ошибке RabbitMQ.
+
+15. Написать mock SMS provider на Go.
+    Создать apps/smsprovider как простой HTTP-сервер с конкретной версией Go в Dockerfile. Реализовать endpoint отправки SMS, асинхронную обработку, хранение provider-side статуса, endpoint получения статуса или callback-совместимый механизм. Поддержать сценарии success, temporary failure и permanent failure для тестов.
+
+16. Написать mock Email provider на Go.
+    Создать apps/emailprovider по тем же правилам, что SMS provider: HTTP send endpoint, асинхронная обработка, статусы, success/temporary failure/permanent failure, возможность детерминированно управлять результатом через тестовый payload или recipient id.
+
+17. Написать failing integration tests для воркера отправки.
+    Проверить цепочку от сообщения RabbitMQ до вызова правильного mock provider, записи provider_message_id, перехода queued -> sent, manual ack только после успешной обработки и сохранения истории статусов. Проверить, что повторная доставка одного RabbitMQ message не вызывает повторную отправку провайдеру.
+
+18. Реализовать воркер отправки уведомлений.
+    Добавить consumer для RabbitMQ, обработчик notification_id, выбор provider adapter по channel, идемпотентную отправку, сохранение sent и provider_message_id, manual ack/nack, correlation/request id в логах и защиту от параллельной обработки одного notification через PostgreSQL lock или Redis lock.
+
+19. Написать и реализовать тесты retry/DLQ.
+    Проверить, что temporary provider/RabbitMQ/HTTP ошибки переводят сообщение в retry с увеличением attempt и backoff, после лимита попыток уведомление становится dropped и сообщение попадает в DLQ или фиксируется как исчерпанное. Permanent provider errors должны сразу завершаться dropped без лишних retry.
+
+20. Реализовать обновление статусов доставки от провайдеров.
+    Добавить polling job или callback endpoint для получения delivered/dropped от mock providers. Сделать переходы статусов идемпотентными и монотонными: нельзя откатить delivered в sent или queued. Каждое изменение статуса должно добавлять запись в notification_status_history.
+
+21. Написать и реализовать тесты истории подписчика.
+    Проверить, что GET /api/subscribers/{subscriberId}/notifications возвращает все уведомления подписчика с batch id, channel, message, priority, current status, timestamps и полной историей статусов в правильном порядке. Добавить фильтры/пагинацию, если объем данных в тестах показывает необходимость.
+
+22. Реализовать request-id middleware и структурное логирование. (выполнено)
+    Middleware должен принимать X-Request-Id из входящего запроса или генерировать новый, добавлять его в response headers, прокидывать в логи, очередь, provider calls и статусные обновления. Логи должны быть JSON-совместимыми и содержать request_id, notification_id/batch_id при наличии, channel, priority, status и duration.
+
+23. Добавить middleware/инструментацию VictoriaMetrics. (выполнено)
+    Реализовать сбор HTTP метрик: количество запросов, latency по стандартным buckets/percentiles, status code, route/method. Добавить метрики воркеров: processed, failed, retried, dropped, provider latency, queue lag. Обеспечить endpoint экспорта метрик и тесты на наличие ключевых метрик.
+
+24. Подготовить Grafana provisioning. (выполнено)
+    Добавить в infra конфигурацию Grafana с конкретной версией, datasource VictoriaMetrics и dashboard JSON. Дашборд должен показывать RPS, latency percentiles, ошибки API, размер очередей, retry/DLQ, статусы уведомлений, provider latency и количество dropped.
+
+25. Подготовить Docker и docker-compose. (выполнено)
+    Создать Dockerfile для Laravel Octane/Swoole, Dockerfile для Go SMS provider, Dockerfile для Go Email provider и infra/docker-compose.yml. В compose должны подниматься app, worker, scheduler/outbox worker, postgres, redis, rabbitmq, smsprovider, emailprovider, victoriametrics и grafana одной командой docker-compose up. Для всех сервисов указать healthcheck, env, volumes только там, где нужно, и конкретные версии образов.
+
+26. Добавить Makefile и команды разработчика. (выполнено)
+    Добавить make up, make down, make test, make test-integration, make migrate, make logs, make lint, make swagger-validate. Команды должны работать из корня проекта и использовать infra/docker-compose.yml.
+
+27. Написать end-to-end integration tests всей цепочки. (выполнено)
+    Проверить через docker-compose окружение сценарии: массовая SMS рассылка, массовая Email рассылка, транзакционное сообщение priority 3 обгоняет marketing priority 1, delivered от провайдера сохраняется в истории, dropped при permanent failure, retry при temporary failure, идемпотентный повтор запроса не создает дублей и не вызывает provider повторно.
+
+28. Провести hardening производственного поведения. (выполнено)
+    Настроить timeouts, connection pools, Octane workers, RabbitMQ prefetch, graceful shutdown consumers, readiness/liveness probes, rate limiting при необходимости, обработку SIGTERM, миграции при старте только через явную команду, отсутствие секретов в репозитории и корректные env defaults в .env.example.
+
+29. Обновить README и эксплуатационную документацию. (выполнено)
+    Описать назначение сервиса, архитектуру, требования, запуск одной командой, доступные URL API/RabbitMQ/Grafana/VictoriaMetrics, примеры curl, idempotency, priority 1..3, статусы, retry/DLQ, запуск тестов, структуру проекта и ограничения mock providers.
+
+30. Выполнить финальную проверку качества. (выполнено)
+    Запустить форматирование, статический анализ, unit/feature/integration/e2e tests, swagger validation и docker-compose up/down. Проверить, что все контейнеры стартуют без latest images, healthchecks зеленые, Grafana dashboard загружается, API соответствует docs/openapi.yaml, request-id и метрики работают.
+
+31. Финал разработки приложения. (выполнено)
+    Зафиксировать итоговое состояние проекта: все задачи разработки завершены, тесты проходят, документация актуальна, приложение поднимается одной командой docker-compose up, функциональные и нефункциональные требования из AGENTS.md покрыты, а оставшиеся ограничения или компромиссы явно описаны в README.
+
+32. Добавить в openapi спецификацию запросы со всеми сценариями: успешные, ошибки клиента, ошибки сервера, ошибки провайдеров. (выполнено)
+    В этих запросах используй фиксированные значения в форме запроса.
+
+Группы:
+Архитектура и надежность: 1, 2, 3 (выполнено)
+Спецификация API и контракты HTTP: 4, 8, 9, 11, 21 (выполнено)
+Базовая структура и Laravel приложение: 5, 7, 10 (выполнено)
+RabbitMQ, приоритеты и outbox: 12, 13, 14 (выполнено)
+Mock providers: 15, 16 (выполнено)
+Воркеры, retry и статусы доставки: 17, 18, 19, 20 (выполнено)
+Наблюдаемость, request-id и метрики: 22, 23, 24 (выполнено)
+Docker, окружение и команды разработки: 25, 26, 28 (выполнено)
+Тестирование, документация и финальная проверка: 6, 27, 29, 30, 31, 32 (выполнено)

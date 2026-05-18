@@ -209,7 +209,7 @@ class NotificationE2ETest extends TestCase
                     'message_id' => $row->id,
                     'status' => 'delivered',
                     'reason' => null,
-                    'occurred_at' => '2026-05-18T08:00:00Z',
+                    'occurred_at' => now('UTC')->addSecond()->toJSON(),
                     'metadata' => [
                         'request_id' => 'req-e2e-webhook-'.$row->id,
                     ],

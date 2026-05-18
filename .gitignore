@@ -41,7 +41,3 @@ coverage.out
 # Docker / local data
 infra/.data/
 docker-compose.override.yml
-
-tasks.txt
-AGENTS.md
-test-strategy.md

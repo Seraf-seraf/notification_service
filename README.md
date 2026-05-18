@@ -109,17 +109,13 @@ make up
 make migrate
 make down
 make test
-make test-integration
-make test-e2e
-make lint
 make swagger-validate
-make final-check
 make logs
 ```
 
-`make up` запускает Docker Compose окружение из `infra/docker-compose.yml`: Laravel Octane HTTP API, send worker, outbox worker, PostgreSQL, Redis, RabbitMQ, mock SMS provider, mock Email provider, VictoriaMetrics и Grafana. Миграции не выполняются автоматически при старте контейнеров; схема БД применяется явной командой `make migrate`.
+`make up` запускает Docker Compose окружение из `infra/docker-compose.yml` вместе с dev override `infra/docker-compose.dev.yml`: Laravel Octane HTTP API, send worker, outbox worker, PostgreSQL, Redis, RabbitMQ, mock SMS provider, mock Email provider, VictoriaMetrics и Grafana. Миграции не выполняются автоматически при старте контейнеров; схема БД применяется явной командой `make migrate`.
 
-Все проверки запускаются в контейнерах. Laravel тесты выполняются в сервисе `servicenotification`, Go provider tests - в фиксированном образе `golang:1.26.3-alpine3.22`, OpenAPI lint - в фиксированном образе `redocly/cli:1.34.5`.
+Проверки запускаются в контейнерах. Laravel тесты выполняются командой `make test` в сервисе `servicenotification`, OpenAPI lint - командой `make swagger-validate` в фиксированном образе `redocly/cli:1.34.5`.
 
 Доступные локальные URL после запуска:
 
@@ -169,6 +165,6 @@ SMS и Email providers находятся в `apps/smsprovider` и `apps/emailpr
 
 ## Финальный статус
 
-Проект покрывает функциональные и нефункциональные требования из `AGENTS.md`: API массовой отправки и истории, приоритеты `1..3`, at-least-once через RabbitMQ, business idempotency, retry/DLQ, request id, метрики VictoriaMetrics, Grafana provisioning и запуск одной командой `docker compose -f infra/docker-compose.yml up --build --remove-orphans`.
+Проект покрывает функциональные и нефункциональные требования из `AGENTS.md`: API массовой отправки и истории, приоритеты `1..3`, at-least-once через RabbitMQ, business idempotency, retry/DLQ, request id, метрики VictoriaMetrics, Grafana provisioning и запуск одной командой `make up`.
 
 Оставшийся компромисс: exactly-once реализован на уровне бизнес-логики через идемпотентность API, уникальные ограничения PostgreSQL, provider idempotency key и монотонные переходы статусов; физическая доставка RabbitMQ остается at-least-once.

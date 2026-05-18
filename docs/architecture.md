@@ -16,9 +16,9 @@ Notification Service принимает запросы на массовую и 
 | Redis                 | Быстрый кэш и координация: request context, short-lived locks, rate/guard counters при необходимости, временные ключи для воркеров. Не является источником истины.  |
 | RabbitMQ              | Персистентный брокер заданий отправки с приоритетами, retry и dead-letter queues.                                                                                   |
 | Send Workers          | Воркеры отправки. Читают RabbitMQ, выбирают provider adapter по channel, вызывают mock provider, обновляют статусы и подтверждают сообщения manual ack.             |
-| Mock SMS Provider     | Go HTTP-сервер, имитирующий SMS gateway. Принимает send request, асинхронно меняет provider-side status, отдает status через polling endpoint или webhook.          |
+| Mock SMS Provider     | Go HTTP-сервер, имитирующий SMS gateway. Принимает send request, асинхронно меняет provider-side status, отдает status через status endpoint или webhook.           |
 | Mock Email Provider   | Go HTTP-сервер, имитирующий Email gateway с тем же контрактом, что SMS provider.                                                                                    |
-| Status Updater        | Webhook endpoint или polling job, который получает delivered/dropped от provider и обновляет PostgreSQL.                                                            |
+| Status Updater        | Webhook endpoint, который получает delivered/dropped от provider и обновляет PostgreSQL. Provider-side status endpoint оставлен для будущего polling adapter.       |
 | VictoriaMetrics       | Хранилище метрик HTTP API, воркеров, provider calls, очередей, retry/DLQ и статусов уведомлений.                                                                    |
 | Grafana               | Дашборды по метрикам Notification Service и инфраструктуры.                                                                                                         |
 
@@ -32,7 +32,7 @@ flowchart LR
     redis[(Redis)]
     rabbit[(RabbitMQ)]
     worker[Send Workers]
-    status[Status Updater<br/>webhook/polling]
+    status[Status Updater<br/>webhook]
     sms[Mock SMS Provider<br/>Go]
     email[Mock Email Provider<br/>Go]
     vm[(VictoriaMetrics)]
@@ -48,8 +48,8 @@ flowchart LR
     worker --> redis
     worker --> sms
     worker --> email
-    sms -->|webhook or polling result| status
-    email -->|webhook or polling result| status
+    sms -->|webhook result| status
+    email -->|webhook result| status
     status --> pg
     api --> vm
     worker --> vm
@@ -157,7 +157,7 @@ queued -> dropped
 7. Outbox Publisher, запускаемый командой `php artisan notifications:outbox:publish`, публикует persistent messages в RabbitMQ с `notification_id`, `batch_id`, `channel`, `priority`, `attempt`, `request_id`.
 8. Send Worker получает сообщение, блокирует notification на время обработки, выбирает SMS или Email adapter и вызывает provider.
 9. При успешной передаче provider возвращает `provider_message_id`; notification переходит в `sent`, status history пополняется, RabbitMQ message подтверждается manual ack.
-10. Финальный статус `delivered` или `dropped` приходит позднее через webhook/polling поток.
+10. Финальный статус `delivered` или `dropped` приходит позднее через provider webhook. Mock providers также отдают status endpoint, но polling job в Laravel приложении сейчас не реализован.
 
 ## 8. Поток транзакционного уведомления с высоким приоритетом
 
@@ -167,7 +167,7 @@ queued -> dropped
 4. Send Workers работают с малым prefetch, чтобы низкоприоритетные сообщения не занимали большие локальные буферы consumer'ов.
 5. Для масштабирования допускается отдельный worker pool с большим числом replicas для срочного трафика, но контракт API остается тем же.
 
-## 9. Webhook / polling поток обновления статуса provider
+## 9. Webhook поток обновления статуса provider
 
 Webhook, то есть HTTP callback от provider, не считается универсальной возможностью любого реального провайдера. Это capability конкретного provider adapter. Для mock SMS и mock Email providers поведение задается конфигурацией, чтобы интеграционные тесты имели предсказуемый сценарий.
 
@@ -178,7 +178,7 @@ Webhook, то есть HTTP callback от provider, не считается ун
 - `STATUS_MODE=success|temporary_failure|permanent_failure|mixed` - детерминированный сценарий обработки.
 - `PROCESSING_DELAY_MS=...` - задержка перед финальным статусом.
 
-Если `WEBHOOK_ENABLED=true`, mock provider сам отправляет финальный статус. Если `WEBHOOK_ENABLED=false`, Notification Service получает статус через polling endpoint mock provider.
+Если `WEBHOOK_ENABLED=true`, mock provider сам отправляет финальный статус. Если `WEBHOOK_ENABLED=false`, финальный статус остается доступен только через provider-side status endpoint; отдельный polling job в Notification Service сейчас не реализован.
 
 Для будущих real adapters правила зависят от возможностей провайдера:
 
@@ -198,11 +198,9 @@ Webhook, то есть HTTP callback от provider, не считается ун
 5. Переход применяется идемпотентно и монотонно. Дубликаты webhook не создают противоречивые состояния.
 6. В PostgreSQL добавляется запись в `notification_status_history`.
 
-### Polling
+### Provider-side status endpoint
 
-1. Periodic job выбирает notifications в статусе `sent` без финального результата.
-2. Job вызывает provider status endpoint по `provider_message_id`.
-3. Результат обрабатывается теми же правилами маппинга и монотонных переходов.
+Mock providers реализуют `GET /api/v1/messages/{provider_message_id}`. Этот endpoint нужен для contract tests и будущего polling adapter. Текущая Laravel-реализация обновляет финальные статусы через webhook endpoint `/api/providers/{provider}/webhooks`.
 
 ## 10. Контракты провайдеров и независимость от шлюзов
 
@@ -213,23 +211,27 @@ Notification Service не должен зависеть от конкретно�
 Интерфейс отправки уведомлений внутри приложения:
 
 ```php
-interface NotificationProviderGateway
+interface NotificationProviderClient
 {
     public function send(ProviderSendRequest $request): ProviderSendResult;
+}
+```
 
-    public function getStatus(ProviderStatusRequest $request): ProviderStatusResult;
+Выбор клиента выполняется через registry:
 
-    public function supportsWebhooks(): bool;
+```php
+interface NotificationProviderRegistry
+{
+    public function forChannel(string $channel): NotificationProviderClient;
 }
 ```
 
 Назначение методов:
 
-| Метод              | Назначение                                                                                                     |
-|--------------------|----------------------------------------------------------------------------------------------------------------|
-| `send`             | Передает одно уведомление во внешний provider. Возвращает `provider_message_id` или классифицированную ошибку. |
-| `getStatus`        | Получает текущий provider-side status для polling режима.                                                      |
-| `supportsWebhooks` | Сообщает application layer, можно ли ожидать webhook от конкретного adapter'а.                                 |
+| Метод       | Назначение                                                                                                     |
+|-------------|----------------------------------------------------------------------------------------------------------------|
+| `send`      | Передает одно уведомление во внешний provider. Возвращает `provider_message_id` или классифицированную ошибку. |
+| `forChannel` | Выбирает provider client по каналу `sms` или `email`.                                                         |
 
 Доменная логика не знает URL, headers, retry-коды и особенности конкретного HTTP provider. Она получает только нормализованный результат adapter'а.
 
@@ -249,19 +251,15 @@ interface NotificationProviderGateway
 ```json
 {
   "notification_id": "1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62",
-  "batch_id": "018f7f8a-81a4-7a1d-9f90-6bff5c2f3b91",
+  "subscriber_id": "user-10001",
   "channel": "sms",
-  "recipient_id": "user-10001",
   "message": "Ваш код: 1234",
   "priority": 3,
-  "attempt": 1,
-  "request_id": "req-7bb7f2e8",
-  "provider_deduplication_key": "1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62",
-  "webhook_url": "http://servicenotification/api/providers/sms/webhooks"
+  "request_id": "req-7bb7f2e8"
 }
 ```
 
-`provider_deduplication_key` обязателен для mock providers. Если реальный provider поддерживает idempotency key/client message id, adapter передает это поле дальше. Если не поддерживает, adapter явно помечается как `external_deduplication=false`.
+Для HTTP mock providers adapter использует `notification_id` как `Idempotency-Key`, чтобы повторная доставка RabbitMQ message не создавала дубль на стороне provider. `webhook_url` формируется adapter'ом из `PROVIDER_WEBHOOK_URL` или route `/api/providers/{provider}/webhooks`.
 
 ### 10.4. Mock provider HTTP send request
 
@@ -278,7 +276,7 @@ Headers:
 ```text
 Content-Type: application/json
 X-Request-Id: <request_id>
-Idempotency-Key: <provider_deduplication_key>
+Idempotency-Key: <notification_id>
 ```
 
 Body:
@@ -292,9 +290,7 @@ Body:
   "priority": 3,
   "webhook_url": "http://servicenotification/api/providers/sms/webhooks",
   "metadata": {
-    "batch_id": "018f7f8a-81a4-7a1d-9f90-6bff5c2f3b91",
-    "request_id": "req-7bb7f2e8",
-    "attempt": 1
+    "request_id": "req-7bb7f2e8"
   }
 }
 ```
@@ -303,7 +299,7 @@ Body:
 
 - повторный request с тем же `Idempotency-Key` возвращает тот же `provider_message_id`;
 - если `WEBHOOK_ENABLED=true`, provider после асинхронной обработки отправляет webhook на `webhook_url` или на `WEBHOOK_URL` из config;
-- если `WEBHOOK_ENABLED=false`, финальный статус доступен только через polling endpoint;
+- если `WEBHOOK_ENABLED=false`, финальный статус доступен только через provider-side status endpoint;
 - `STATUS_MODE` управляет финальным статусом и ошибками для интеграционных тестов.
 
 ### 10.5. Mock provider send response
@@ -366,7 +362,7 @@ Content-Type: application/json
 }
 ```
 
-### 10.6. Polling status request
+### 10.6. Provider-side status request
 
 Endpoint:
 
@@ -442,10 +438,10 @@ Webhook должен обрабатываться идемпотентно. Ду
 
 Application Service и worker зависят от:
 
-- `NotificationProviderGateway`;
+- `NotificationProviderClient`;
+- `NotificationProviderRegistry`;
 - DTO `ProviderSendRequest`;
 - DTO `ProviderSendResult`;
-- DTO `ProviderStatusResult`;
 - нормализованных error/status enums.
 
 Application Service и worker не зависят от:
@@ -580,7 +576,7 @@ unique(endpoint, idempotency_key)
 - `batch_id` генерируется один раз при первом успешном idempotency request и сохраняется в `idempotency_keys`;
 - `notification_id` детерминированно связан с `batch_id + recipient_id`, например UUID v5 с сохраненным unique constraint;
 - `message_id` для RabbitMQ/outbox равен `notification_id` или производному `notification_id + attempt`;
-- `provider_deduplication_key` равен `notification_id` и передается mock provider, если provider contract это поддерживает.
+- `notification_id` передается mock provider как HTTP `Idempotency-Key`, если provider contract это поддерживает.
 
 Минимальные ограничения PostgreSQL:
 
@@ -600,7 +596,7 @@ unique(outbox_message_id)
 - если status `queued`, worker берет блокировку строки notification `FOR UPDATE SKIP LOCKED` или короткий Redis lock и выполняет отправку;
 - после успешного provider response worker сохраняет `provider_message_id`, переводит статус в `sent`, пишет history и только потом ack'ает RabbitMQ message.
 
-Если worker упал после provider call, но до сохранения `sent`, возможен повторный вызов provider. Для снижения риска mock provider должен принимать `provider_deduplication_key` и возвращать тот же `provider_message_id` при повторе. Для real provider это зависит от capability adapter'а; если provider не поддерживает deduplication key, exactly-once снаружи гарантировать нельзя, только at-least-once + внутренняя защита от повторов после сохранения `sent`.
+Если worker упал после provider call, но до сохранения `sent`, возможен повторный вызов provider. Для снижения риска mock provider принимает `notification_id` как idempotency key и возвращает тот же `provider_message_id` при повторе. Для real provider это зависит от capability adapter'а; если provider не поддерживает idempotency key, exactly-once снаружи гарантировать нельзя, только at-least-once + внутренняя защита от повторов после сохранения `sent`.
 
 #### Идемпотентные переходы статусов
 
@@ -616,7 +612,7 @@ sent -> dropped
 Правила:
 
 - `delivered` и `dropped` финальные;
-- повторный webhook/polling result с тем же статусом не создает логического дубля;
+- повторный webhook result с тем же статусом не создает логического дубля;
 - webhook `sent/processing` не откатывает `delivered` или `dropped`;
 - webhook `dropped` после `delivered` игнорируется или сохраняется как provider anomaly без изменения current status;
 - каждая успешная смена current status добавляет запись в `notification_status_history`.
@@ -722,10 +718,10 @@ DLQ message должен содержать:
 | API упал после commit, но до ответа клиенту              | Повтор с тем же `Idempotency-Key` вернет уже созданный batch.                                        |
 | RabbitMQ недоступен после создания notifications         | Outbox хранит unpublished messages, publisher повторит позже.                                        |
 | Worker упал до provider call                             | RabbitMQ доставит message повторно.                                                                  |
-| Worker упал после provider call, но до PostgreSQL update | Возможен повторный provider call; снижается через `provider_deduplication_key`.                      |
+| Worker упал после provider call, но до PostgreSQL update | Возможен повторный provider call; снижается через provider idempotency key на базе `notification_id`. |
 | Worker упал после PostgreSQL update, но до ack           | RabbitMQ доставит message повторно; worker увидит `sent` и ack'нет без повторной отправки.           |
 | Webhook пришел дважды                                    | Второй webhook идемпотентно игнорируется или сохраняется как raw event без изменения current status. |
-| Polling и webhook пришли одновременно                    | PostgreSQL lock/unique constraints сохраняют один монотонный переход.                                |
+| Два webhook события пришли одновременно                   | PostgreSQL lock/unique constraints сохраняют один монотонный переход.                                |
 
 ## 14. Наблюдаемость
 
