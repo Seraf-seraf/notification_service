@@ -14,6 +14,8 @@ apps/
 docs/
   architecture.md       Архитектура и модель надежности
   openapi.yaml          Swagger/OpenAPI спецификация публичного API
+  Notification Service API.postman_collection.json
+                       Postman коллекция для ручной проверки API
   versions.md           Зафиксированные версии стека
 infra/                  Docker, docker-compose, provisioning и инфраструктурные настройки
 ```
@@ -47,6 +49,8 @@ Floating tags вроде `latest` не используются.
 - `POST /api/providers/{provider}/webhooks` - callback статусов доставки от mock providers.
 
 Приоритет задается числом от `1` до `3`, где `3` - срочное транзакционное уведомление.
+
+Для ручной проверки API подготовлена Postman коллекция: [docs/Notification Service API.postman_collection.json](<docs/Notification Service API.postman_collection.json>).
 
 Статусы уведомлений:
 
@@ -146,6 +150,7 @@ docker build -f infra/servicenotification/Dockerfile --target production -t noti
 
 - Архитектура: [docs/architecture.md](docs/architecture.md)
 - OpenAPI: [docs/openapi.yaml](docs/openapi.yaml)
+- Postman коллекция: [docs/Notification Service API.postman_collection.json](<docs/Notification Service API.postman_collection.json>)
 - Тестовая стратегия: [docs/test-strategy.md](docs/test-strategy.md)
 - Версии: [docs/versions.md](docs/versions.md)
 

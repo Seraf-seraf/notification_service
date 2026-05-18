@@ -1,0 +1,1188 @@
+{
+  "info": {
+    "_postman_id": "b2afc2d9-23b0-4d15-af0c-119122c3a971",
+    "name": "Notification Service API",
+    "description": "HTTP API микросервиса уведомлений для запуска массовых SMS/Email рассылок и получения истории статусов уведомлений подписчика. Авторизация находится вне ответственности сервиса.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "34273840"
+  },
+  "item": [
+    {
+      "name": "notifications",
+      "item": [
+        {
+          "name": "send",
+          "item": [
+            {
+              "name": "Запустить массовую рассылку",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                    "key": "X-Request-Id",
+                    "value": "req-7bb7f2e8"
+                  },
+                  {
+                    "description": "Ключ идемпотентности для защиты от повторного создания одной и той же рассылки при повторе запроса вызывающим сервисом.\n",
+                    "key": "Idempotency-Key",
+                    "value": "batch-sms-marketing-2026-05-16-001"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"channel\": \"sms\",\n  \"message\": \"Скидка 20% на поездки до конца недели\",\n  \"priority\": 1,\n  \"recipient_ids\": [\n    \"subscriber-10001\",\n    \"subscriber-10002\",\n    \"subscriber-10003\"\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/notifications/send",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "notifications",
+                    "send"
+                  ]
+                },
+                "description": "Принимает SMS или Email рассылку, создает batch и уведомления в статусе queued, после чего задания отправки публикуются в RabbitMQ через надежный outbox/publisher механизм. Повторный запрос с тем же Idempotency-Key и тем же payload возвращает тот же результат без создания дублей.\n"
+              },
+              "response": [
+                {
+                  "name": "Рассылка принята в обработку.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "description": "Ключ идемпотентности для защиты от повторного создания одной и той же рассылки при повторе запроса вызывающим сервисом.\n",
+                        "key": "Idempotency-Key",
+                        "value": "batch-sms-marketing-2026-05-16-001"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"channel\": \"sms\",\n  \"message\": \"Скидка 20% на поездки до конца недели\",\n  \"priority\": 1,\n  \"recipient_ids\": [\n    \"subscriber-10001\",\n    \"subscriber-10002\",\n    \"subscriber-10003\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/notifications/send",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "notifications",
+                        "send"
+                      ]
+                    }
+                  },
+                  "status": "Accepted",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"data\": {\n    \"batch_id\": \"018f7f8a-81a4-7a1d-9f90-6bff5c2f3b91\",\n    \"status\": \"accepted\",\n    \"channel\": \"sms\",\n    \"priority\": 1,\n    \"message\": \"Скидка 20% на поездки до конца недели\",\n    \"recipients_count\": 3,\n    \"notifications\": [\n      {\n        \"notification_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n        \"recipient_id\": \"subscriber-10001\",\n        \"status\": \"queued\"\n      },\n      {\n        \"notification_id\": \"8d8a2f64-41c9-5e5d-9f13-25a465a7bd40\",\n        \"recipient_id\": \"subscriber-10002\",\n        \"status\": \"queued\"\n      },\n      {\n        \"notification_id\": \"8c62f21f-897d-50c4-b7db-33136c74893c\",\n        \"recipient_id\": \"subscriber-10003\",\n        \"status\": \"queued\"\n      }\n    ]\n  },\n  \"meta\": {\n    \"request_id\": \"req-7bb7f2e8\",\n    \"idempotency_key\": \"batch-sms-marketing-2026-05-16-001\",\n    \"created_at\": \"2026-05-16T08:20:30Z\"\n  }\n}"
+                },
+                {
+                  "name": "Некорректный JSON или неподдерживаемый формат запроса.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "description": "Ключ идемпотентности для защиты от повторного создания одной и той же рассылки при повторе запроса вызывающим сервисом.\n",
+                        "key": "Idempotency-Key",
+                        "value": "batch-sms-marketing-2026-05-16-001"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"channel\": \"sms\",\n  \"message\": \"Скидка 20% на поездки до конца недели\",\n  \"priority\": 1,\n  \"recipient_ids\": [\n    \"subscriber-10001\",\n    \"subscriber-10002\",\n    \"subscriber-10003\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/notifications/send",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "notifications",
+                        "send"
+                      ]
+                    }
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"bad_request\",\n    \"message\": \"Тело запроса должно быть валидным JSON.\"\n  },\n  \"meta\": {\n    \"request_id\": \"req-bad-json-001\"\n  }\n}"
+                },
+                {
+                  "name": "Idempotency-Key уже использован с другим payload.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "description": "Ключ идемпотентности для защиты от повторного создания одной и той же рассылки при повторе запроса вызывающим сервисом.\n",
+                        "key": "Idempotency-Key",
+                        "value": "batch-sms-marketing-2026-05-16-001"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"channel\": \"sms\",\n  \"message\": \"Скидка 20% на поездки до конца недели\",\n  \"priority\": 1,\n  \"recipient_ids\": [\n    \"subscriber-10001\",\n    \"subscriber-10002\",\n    \"subscriber-10003\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/notifications/send",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "notifications",
+                        "send"
+                      ]
+                    }
+                  },
+                  "status": "Conflict",
+                  "code": 409,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"idempotency_conflict\",\n    \"message\": \"Idempotency-Key уже использован для другого запроса.\",\n    \"details\": {\n      \"idempotency_key\": [\n        \"batch-sms-marketing-2026-05-16-001\"\n      ]\n    }\n  },\n  \"meta\": {\n    \"request_id\": \"req-idempotency-conflict-001\"\n  }\n}"
+                },
+                {
+                  "name": "Ошибка валидации входных данных.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "description": "Ключ идемпотентности для защиты от повторного создания одной и той же рассылки при повторе запроса вызывающим сервисом.\n",
+                        "key": "Idempotency-Key",
+                        "value": "batch-sms-marketing-2026-05-16-001"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"channel\": \"sms\",\n  \"message\": \"Скидка 20% на поездки до конца недели\",\n  \"priority\": 1,\n  \"recipient_ids\": [\n    \"subscriber-10001\",\n    \"subscriber-10002\",\n    \"subscriber-10003\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/notifications/send",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "notifications",
+                        "send"
+                      ]
+                    }
+                  },
+                  "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"validation_error\",\n    \"message\": \"Переданы некорректные параметры запроса.\",\n    \"details\": {\n      \"channel\": [\n        \"Канал должен быть sms или email.\"\n      ],\n      \"priority\": [\n        \"Приоритет должен быть числом от 1 до 3.\"\n      ],\n      \"recipient_ids\": [\n        \"Нужно передать хотя бы одного получателя.\"\n      ]\n    }\n  },\n  \"meta\": {\n    \"request_id\": \"req-validation-send-001\"\n  }\n}"
+                },
+                {
+                  "name": "Внутренняя ошибка сервиса.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "description": "Ключ идемпотентности для защиты от повторного создания одной и той же рассылки при повторе запроса вызывающим сервисом.\n",
+                        "key": "Idempotency-Key",
+                        "value": "batch-sms-marketing-2026-05-16-001"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"channel\": \"sms\",\n  \"message\": \"Скидка 20% на поездки до конца недели\",\n  \"priority\": 1,\n  \"recipient_ids\": [\n    \"subscriber-10001\",\n    \"subscriber-10002\",\n    \"subscriber-10003\"\n  ]\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/notifications/send",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "notifications",
+                        "send"
+                      ]
+                    }
+                  },
+                  "status": "Internal Server Error",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"internal_error\",\n    \"message\": \"Внутренняя ошибка сервиса.\"\n  },\n  \"meta\": {\n    \"request_id\": \"req-server-db-001\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "providers",
+      "item": [
+        {
+          "name": "webhooks",
+          "item": [
+            {
+              "name": "Принять статус доставки от провайдера",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                    "key": "X-Request-Id",
+                    "value": "req-7bb7f2e8"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"provider_message_id\": \"smsmsg-000001\",\n  \"message_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n  \"status\": \"delivered\",\n  \"reason\": null,\n  \"occurred_at\": \"2026-05-16T10:15:30Z\",\n  \"metadata\": {\n    \"request_id\": \"req-7bb7f2e8\"\n  }\n}",
+                  "options": {
+                    "raw": {
+                      "headerFamily": "json",
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "{{baseUrl}}/api/providers/:provider/webhooks",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "providers",
+                    ":provider",
+                    "webhooks"
+                  ],
+                  "variable": [
+                    {
+                      "key": "provider",
+                      "value": "sms",
+                      "description": "Mock provider, отправивший webhook."
+                    }
+                  ]
+                },
+                "description": "Callback endpoint Notification Service, который mock SMS/Email provider вызывает после асинхронной обработки сообщения. Обработчик идемпотентно маппит provider status во внутренние статусы delivered/dropped и не откатывает финальные статусы.\n"
+              },
+              "response": [
+                {
+                  "name": "Статус принят к обработке или идемпотентно проигнорирован.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_message_id\": \"smsmsg-000001\",\n  \"message_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n  \"status\": \"delivered\",\n  \"reason\": null,\n  \"occurred_at\": \"2026-05-16T10:15:30Z\",\n  \"metadata\": {\n    \"request_id\": \"req-7bb7f2e8\"\n  }\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/providers/:provider/webhooks",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "providers",
+                        ":provider",
+                        "webhooks"
+                      ],
+                      "variable": [
+                        {
+                          "key": "provider",
+                          "value": "sms",
+                          "description": "Mock provider, отправивший webhook."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Accepted",
+                  "code": 202,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"data\": {\n    \"provider_message_id\": \"smsmsg-000001\",\n    \"message_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n    \"provider_status\": \"delivered\",\n    \"notification_status\": \"delivered\",\n    \"applied\": true\n  },\n  \"meta\": {\n    \"request_id\": \"req-7bb7f2e8\"\n  }\n}"
+                },
+                {
+                  "name": "Некорректный JSON или неподдерживаемый формат запроса.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_message_id\": \"smsmsg-000001\",\n  \"message_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n  \"status\": \"delivered\",\n  \"reason\": null,\n  \"occurred_at\": \"2026-05-16T10:15:30Z\",\n  \"metadata\": {\n    \"request_id\": \"req-7bb7f2e8\"\n  }\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/providers/:provider/webhooks",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "providers",
+                        ":provider",
+                        "webhooks"
+                      ],
+                      "variable": [
+                        {
+                          "key": "provider",
+                          "value": "sms",
+                          "description": "Mock provider, отправивший webhook."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"bad_request\",\n    \"message\": \"Тело запроса должно быть валидным JSON.\"\n  },\n  \"meta\": {\n    \"request_id\": \"req-bad-json-001\"\n  }\n}"
+                },
+                {
+                  "name": "Ошибка валидации входных данных.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_message_id\": \"smsmsg-000001\",\n  \"message_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n  \"status\": \"delivered\",\n  \"reason\": null,\n  \"occurred_at\": \"2026-05-16T10:15:30Z\",\n  \"metadata\": {\n    \"request_id\": \"req-7bb7f2e8\"\n  }\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/providers/:provider/webhooks",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "providers",
+                        ":provider",
+                        "webhooks"
+                      ],
+                      "variable": [
+                        {
+                          "key": "provider",
+                          "value": "sms",
+                          "description": "Mock provider, отправивший webhook."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"validation_error\",\n    \"message\": \"Переданы некорректные параметры запроса.\",\n    \"details\": {\n      \"channel\": [\n        \"Канал должен быть sms или email.\"\n      ],\n      \"priority\": [\n        \"Приоритет должен быть числом от 1 до 3.\"\n      ],\n      \"recipient_ids\": [\n        \"Нужно передать хотя бы одного получателя.\"\n      ]\n    }\n  },\n  \"meta\": {\n    \"request_id\": \"req-validation-send-001\"\n  }\n}"
+                },
+                {
+                  "name": "Внутренняя ошибка сервиса.",
+                  "originalRequest": {
+                    "method": "POST",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_message_id\": \"smsmsg-000001\",\n  \"message_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n  \"status\": \"delivered\",\n  \"reason\": null,\n  \"occurred_at\": \"2026-05-16T10:15:30Z\",\n  \"metadata\": {\n    \"request_id\": \"req-7bb7f2e8\"\n  }\n}",
+                      "options": {
+                        "raw": {
+                          "headerFamily": "json",
+                          "language": "json"
+                        }
+                      }
+                    },
+                    "url": {
+                      "raw": "{{baseUrl}}/api/providers/:provider/webhooks",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "providers",
+                        ":provider",
+                        "webhooks"
+                      ],
+                      "variable": [
+                        {
+                          "key": "provider",
+                          "value": "sms",
+                          "description": "Mock provider, отправивший webhook."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Internal Server Error",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"internal_error\",\n    \"message\": \"Внутренняя ошибка сервиса.\"\n  },\n  \"meta\": {\n    \"request_id\": \"req-server-db-001\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "subscribers",
+      "item": [
+        {
+          "name": "notifications",
+          "item": [
+            {
+              "name": "Получить историю уведомлений подписчика",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                    "key": "X-Request-Id",
+                    "value": "req-7bb7f2e8"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/api/subscribers/:subscriberId/notifications?status=queued&channel=sms&limit=50&cursor=string&created_from=2026-05-16T00:00:00Z&created_to=2026-05-16T23:59:59Z",
+                  "host": [
+                    "{{baseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "subscribers",
+                    ":subscriberId",
+                    "notifications"
+                  ],
+                  "query": [
+                    {
+                      "description": "Фильтр по текущему статусу уведомления.",
+                      "key": "status",
+                      "value": "queued"
+                    },
+                    {
+                      "description": "Фильтр по каналу доставки.",
+                      "key": "channel",
+                      "value": "sms"
+                    },
+                    {
+                      "description": "Максимальное количество уведомлений в ответе.",
+                      "key": "limit",
+                      "value": "50"
+                    },
+                    {
+                      "description": "Cursor для следующей страницы.",
+                      "key": "cursor",
+                      "value": "string"
+                    },
+                    {
+                      "description": "Нижняя граница даты создания уведомления.",
+                      "key": "created_from",
+                      "value": "2026-05-16T00:00:00Z"
+                    },
+                    {
+                      "description": "Верхняя граница даты создания уведомления.",
+                      "key": "created_to",
+                      "value": "2026-05-16T23:59:59Z"
+                    }
+                  ],
+                  "variable": [
+                    {
+                      "key": "subscriberId",
+                      "value": "subscriber-10001",
+                      "description": "Идентификатор подписчика во внешней системе-инициаторе."
+                    }
+                  ]
+                },
+                "description": "Возвращает текущие статусы и полную историю переходов статусов всех уведомлений конкретного подписчика.\n"
+              },
+              "response": [
+                {
+                  "name": "История уведомлений подписчика.",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/subscribers/:subscriberId/notifications?status=queued&channel=sms&limit=50&cursor=string&created_from=2026-05-16T00:00:00Z&created_to=2026-05-16T23:59:59Z",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "subscribers",
+                        ":subscriberId",
+                        "notifications"
+                      ],
+                      "query": [
+                        {
+                          "description": "Фильтр по текущему статусу уведомления.",
+                          "key": "status",
+                          "value": "queued"
+                        },
+                        {
+                          "description": "Фильтр по каналу доставки.",
+                          "key": "channel",
+                          "value": "sms"
+                        },
+                        {
+                          "description": "Максимальное количество уведомлений в ответе.",
+                          "key": "limit",
+                          "value": "50"
+                        },
+                        {
+                          "description": "Cursor для следующей страницы.",
+                          "key": "cursor",
+                          "value": "string"
+                        },
+                        {
+                          "description": "Нижняя граница даты создания уведомления.",
+                          "key": "created_from",
+                          "value": "2026-05-16T00:00:00Z"
+                        },
+                        {
+                          "description": "Верхняя граница даты создания уведомления.",
+                          "key": "created_to",
+                          "value": "2026-05-16T23:59:59Z"
+                        }
+                      ],
+                      "variable": [
+                        {
+                          "key": "subscriberId",
+                          "value": "subscriber-10001",
+                          "description": "Идентификатор подписчика во внешней системе-инициаторе."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "OK",
+                  "code": 200,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"data\": {\n    \"subscriber_id\": \"subscriber-10001\",\n    \"notifications\": [\n      {\n        \"notification_id\": \"1b5db0e8-8f30-5c93-9f7f-5a6d6b6c1c62\",\n        \"batch_id\": \"018f7f8a-81a4-7a1d-9f90-6bff5c2f3b91\",\n        \"channel\": \"sms\",\n        \"message\": \"Скидка 20% на поездки до конца недели\",\n        \"priority\": 1,\n        \"current_status\": \"delivered\",\n        \"provider_message_id\": \"sms-msg-000001\",\n        \"created_at\": \"2026-05-16T08:20:30Z\",\n        \"updated_at\": \"2026-05-16T08:20:37Z\",\n        \"status_history\": [\n          {\n            \"status\": \"queued\",\n            \"changed_at\": \"2026-05-16T08:20:30Z\",\n            \"reason\": \"Уведомление принято и ожидает отправки.\"\n          },\n          {\n            \"status\": \"sent\",\n            \"changed_at\": \"2026-05-16T08:20:32Z\",\n            \"reason\": \"Уведомление передано SMS provider.\"\n          },\n          {\n            \"status\": \"delivered\",\n            \"changed_at\": \"2026-05-16T08:20:37Z\",\n            \"reason\": \"Provider подтвердил доставку.\"\n          }\n        ]\n      },\n      {\n        \"notification_id\": \"7d9d68c3-e43f-573c-9e75-f5a91cc9f861\",\n        \"batch_id\": \"0194d9d1-2a47-7a9c-a7ab-7ec0172c4e91\",\n        \"channel\": \"email\",\n        \"message\": \"Срочное изменение маршрута. Проверьте обновленные детали поездки.\",\n        \"priority\": 3,\n        \"current_status\": \"sent\",\n        \"provider_message_id\": \"email-msg-000777\",\n        \"created_at\": \"2026-05-16T09:10:00Z\",\n        \"updated_at\": \"2026-05-16T09:10:02Z\",\n        \"status_history\": [\n          {\n            \"status\": \"queued\",\n            \"changed_at\": \"2026-05-16T09:10:00Z\",\n            \"reason\": \"Уведомление принято и ожидает отправки.\"\n          },\n          {\n            \"status\": \"sent\",\n            \"changed_at\": \"2026-05-16T09:10:02Z\",\n            \"reason\": \"Уведомление передано Email provider.\"\n          }\n        ]\n      }\n    ]\n  },\n  \"meta\": {\n    \"request_id\": \"req-7bb7f2e8\",\n    \"limit\": 50,\n    \"next_cursor\": null\n  }\n}"
+                },
+                {
+                  "name": "Некорректный JSON или неподдерживаемый формат запроса.",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/subscribers/:subscriberId/notifications?status=queued&channel=sms&limit=50&cursor=string&created_from=2026-05-16T00:00:00Z&created_to=2026-05-16T23:59:59Z",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "subscribers",
+                        ":subscriberId",
+                        "notifications"
+                      ],
+                      "query": [
+                        {
+                          "description": "Фильтр по текущему статусу уведомления.",
+                          "key": "status",
+                          "value": "queued"
+                        },
+                        {
+                          "description": "Фильтр по каналу доставки.",
+                          "key": "channel",
+                          "value": "sms"
+                        },
+                        {
+                          "description": "Максимальное количество уведомлений в ответе.",
+                          "key": "limit",
+                          "value": "50"
+                        },
+                        {
+                          "description": "Cursor для следующей страницы.",
+                          "key": "cursor",
+                          "value": "string"
+                        },
+                        {
+                          "description": "Нижняя граница даты создания уведомления.",
+                          "key": "created_from",
+                          "value": "2026-05-16T00:00:00Z"
+                        },
+                        {
+                          "description": "Верхняя граница даты создания уведомления.",
+                          "key": "created_to",
+                          "value": "2026-05-16T23:59:59Z"
+                        }
+                      ],
+                      "variable": [
+                        {
+                          "key": "subscriberId",
+                          "value": "subscriber-10001",
+                          "description": "Идентификатор подписчика во внешней системе-инициаторе."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Bad Request",
+                  "code": 400,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"bad_request\",\n    \"message\": \"Тело запроса должно быть валидным JSON.\"\n  },\n  \"meta\": {\n    \"request_id\": \"req-bad-json-001\"\n  }\n}"
+                },
+                {
+                  "name": "Ошибка валидации входных данных.",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/subscribers/:subscriberId/notifications?status=queued&channel=sms&limit=50&cursor=string&created_from=2026-05-16T00:00:00Z&created_to=2026-05-16T23:59:59Z",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "subscribers",
+                        ":subscriberId",
+                        "notifications"
+                      ],
+                      "query": [
+                        {
+                          "description": "Фильтр по текущему статусу уведомления.",
+                          "key": "status",
+                          "value": "queued"
+                        },
+                        {
+                          "description": "Фильтр по каналу доставки.",
+                          "key": "channel",
+                          "value": "sms"
+                        },
+                        {
+                          "description": "Максимальное количество уведомлений в ответе.",
+                          "key": "limit",
+                          "value": "50"
+                        },
+                        {
+                          "description": "Cursor для следующей страницы.",
+                          "key": "cursor",
+                          "value": "string"
+                        },
+                        {
+                          "description": "Нижняя граница даты создания уведомления.",
+                          "key": "created_from",
+                          "value": "2026-05-16T00:00:00Z"
+                        },
+                        {
+                          "description": "Верхняя граница даты создания уведомления.",
+                          "key": "created_to",
+                          "value": "2026-05-16T23:59:59Z"
+                        }
+                      ],
+                      "variable": [
+                        {
+                          "key": "subscriberId",
+                          "value": "subscriber-10001",
+                          "description": "Идентификатор подписчика во внешней системе-инициаторе."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Unprocessable Entity (WebDAV) (RFC 4918)",
+                  "code": 422,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"validation_error\",\n    \"message\": \"Переданы некорректные параметры запроса.\",\n    \"details\": {\n      \"channel\": [\n        \"Канал должен быть sms или email.\"\n      ],\n      \"priority\": [\n        \"Приоритет должен быть числом от 1 до 3.\"\n      ],\n      \"recipient_ids\": [\n        \"Нужно передать хотя бы одного получателя.\"\n      ]\n    }\n  },\n  \"meta\": {\n    \"request_id\": \"req-validation-send-001\"\n  }\n}"
+                },
+                {
+                  "name": "Внутренняя ошибка сервиса.",
+                  "originalRequest": {
+                    "method": "GET",
+                    "header": [
+                      {
+                        "description": "Сквозной идентификатор запроса. Если заголовок не передан, сервис генерирует новый и возвращает его в ответе.\n",
+                        "key": "X-Request-Id",
+                        "value": "req-7bb7f2e8"
+                      },
+                      {
+                        "key": "Accept",
+                        "value": "application/json"
+                      }
+                    ],
+                    "url": {
+                      "raw": "{{baseUrl}}/api/subscribers/:subscriberId/notifications?status=queued&channel=sms&limit=50&cursor=string&created_from=2026-05-16T00:00:00Z&created_to=2026-05-16T23:59:59Z",
+                      "host": [
+                        "{{baseUrl}}"
+                      ],
+                      "path": [
+                        "api",
+                        "subscribers",
+                        ":subscriberId",
+                        "notifications"
+                      ],
+                      "query": [
+                        {
+                          "description": "Фильтр по текущему статусу уведомления.",
+                          "key": "status",
+                          "value": "queued"
+                        },
+                        {
+                          "description": "Фильтр по каналу доставки.",
+                          "key": "channel",
+                          "value": "sms"
+                        },
+                        {
+                          "description": "Максимальное количество уведомлений в ответе.",
+                          "key": "limit",
+                          "value": "50"
+                        },
+                        {
+                          "description": "Cursor для следующей страницы.",
+                          "key": "cursor",
+                          "value": "string"
+                        },
+                        {
+                          "description": "Нижняя граница даты создания уведомления.",
+                          "key": "created_from",
+                          "value": "2026-05-16T00:00:00Z"
+                        },
+                        {
+                          "description": "Верхняя граница даты создания уведомления.",
+                          "key": "created_to",
+                          "value": "2026-05-16T23:59:59Z"
+                        }
+                      ],
+                      "variable": [
+                        {
+                          "key": "subscriberId",
+                          "value": "subscriber-10001",
+                          "description": "Идентификатор подписчика во внешней системе-инициаторе."
+                        }
+                      ]
+                    }
+                  },
+                  "status": "Internal Server Error",
+                  "code": 500,
+                  "_postman_previewlanguage": "json",
+                  "header": [
+                    {
+                      "key": "Content-Type",
+                      "value": "application/json"
+                    },
+                    {
+                      "disabled": false,
+                      "description": {
+                        "content": "",
+                        "type": "text/plain"
+                      },
+                      "key": "X-Request-Id",
+                      "value": ""
+                    }
+                  ],
+                  "cookie": [],
+                  "body": "{\n  \"error\": {\n    \"code\": \"internal_error\",\n    \"message\": \"Внутренняя ошибка сервиса.\"\n  },\n  \"meta\": {\n    \"request_id\": \"req-server-db-001\"\n  }\n}"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
+  ]
+}
